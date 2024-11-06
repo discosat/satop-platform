@@ -1,11 +1,7 @@
 from fastapi import APIRouter
 
-from .restapi import app
+from .restapi import app, _api_config, _root_path
 from core import config
-
-_api_config = config.load_config('api.yml')
-_root_path = _api_config.get('root_path', '/api')
-
 
 def include_route(router:APIRouter,  *args, **kwargs):
     app.include_router(router, prefix=_root_path, *args, **kwargs)

@@ -5,11 +5,16 @@ import uvicorn
 
 from core import config
 
-app = FastAPI()
+app = FastAPI(
+    title="SatOP Platform API",
+    description="Software platform for operations and control of satellite systems.",
+    version='0.1.0-dev'
+)
 
 logger = logging.getLogger(__name__)
 
 _api_config = config.load_config('api.yml')
+_root_path = _api_config.get('root_path', '/api')
 
 def mount_plugin_router(plugin_name:str, plugin_router: APIRouter, tags: list[str] = None, plugin_path: str=None):
     """Mount a router from a plugin
@@ -25,9 +30,10 @@ def mount_plugin_router(plugin_name:str, plugin_router: APIRouter, tags: list[st
 
     if plugin_path is None:
         plugin_path = _api_config.get('plugin_path', '/plugins')
+    plugin_path = _root_path + plugin_path
 
     if plugin_router.prefix == '':
-        plugin_router.prefix = plugin_name
+        plugin_path += '/' + plugin_name
     
     full_prefix = plugin_path + plugin_router.prefix
 
