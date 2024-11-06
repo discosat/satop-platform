@@ -9,4 +9,4 @@ def load_config(file:str = None):
         return dict()
 
     with open(config_path) as f:
-        return yaml.safe_load(f)
+        return yaml.safe_load(f) or dict()
