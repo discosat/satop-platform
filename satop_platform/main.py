@@ -3,6 +3,7 @@ import argparse
 
 from components import restapi as api
 from components import sample
+from plugin_engine.plugin_engine import run_engine
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,8 @@ if __name__ == '__main__':
     logger.info('Starting platform')
 
     sample.init()
+
+    run_engine()
 
     logger.info('Running server')
     api.load_routes()
