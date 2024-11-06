@@ -3,9 +3,13 @@ from urllib.parse import urljoin
 import logging
 import uvicorn
 
+from core import config
+
 app = FastAPI()
 
 logger = logging.getLogger(__name__)
+
+_api_config = config.load_config('api.yml')
 
 def mount_plugin_router(plugin_name:str, plugin_router: APIRouter, tags: list[str] = None, plugin_path: str=None):
     """Mount a router from a plugin
@@ -14,10 +18,13 @@ def mount_plugin_router(plugin_name:str, plugin_router: APIRouter, tags: list[st
         plugin_name (str): Name of the plugin. 
         plugin_router (APIRouter): FastAPI Router configured for the plugin. If it doesn't have a prefix defined, this will be set to 
         tags (list[str], optional): _description_
-        plugin_path (str, optional): _description_. Defaults to '/plugins'.
+        plugin_path (str, optional): _description_. Defaults to '/plugins' or value of 'plugin_path' in the api.yml file.
     """
     if tags is None:
         tags = [plugin_name]
+
+    if plugin_path is None:
+        plugin_path = _api_config.get('plugin_path', '/plugins')
 
     if plugin_router.prefix == '':
         plugin_router.prefix = plugin_name
@@ -29,5 +36,8 @@ def mount_plugin_router(plugin_name:str, plugin_router: APIRouter, tags: list[st
     app.include_router(plugin_router, prefix=plugin_path)
 
 def run_server(host="127.0.0.1", port=7889):
+    host = _api_config.get('host', host)
+    port = _api_config.get('port', port)
+
     logger.info(f'Starting server on {host}:{port}')
     uvicorn.run(app, host=host, port=port)

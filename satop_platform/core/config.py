@@ -1,19 +1,12 @@
 import yaml
+import os
 
+def load_config(file:str = None):
+    file_path = os.path.dirname(os.path.realpath(__file__))
+    config_path = os.path.join(file_path, '..', 'config', file)
 
+    if not os.path.exists(config_path):
+        return dict()
 
-class Config:
-    config_defaults = {
-        'api': {
-            'root_path': '/api',
-            'plugin_path': '/api/apps'
-        }
-    }
-
-    def load_config(file:str):
-        with open(file) as f:
-            cfg = None
-
-    
-    def get_value(self, value_path:str):
-        pass
+    with open(config_path) as f:
+        return yaml.safe_load(f)
