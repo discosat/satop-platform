@@ -5,6 +5,7 @@ import uvicorn
 
 from core import config
 
+# TODO: Get package information instead of hard-coding it here
 app = FastAPI(
     title="SatOP Platform API",
     description="Software platform for operations and control of satellite systems.",

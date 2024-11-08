@@ -3,6 +3,7 @@ import argparse
 
 from components import restapi as api
 from components import sample
+from components.syslog import syslog
 from plugin_engine.plugin_engine import run_engine
 
 logger = logging.getLogger(__name__)
@@ -29,5 +30,6 @@ if __name__ == '__main__':
     run_engine()
 
     logger.info('Running server')
+    syslog.init()
     api.load_routes()
     api.run_server()
