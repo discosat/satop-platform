@@ -2,3 +2,6 @@ name: Dummy
 entrypoint: main.py
 requirements: []
 dependencies: []
+public_functions:
+  - run
+  - return_hello

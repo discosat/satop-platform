@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 import logging
 
 class PluginEngineInterface:
@@ -19,7 +19,7 @@ class PluginEngineInterface:
         self.logger = logging.getLogger(__name__)
         # self.routes = {}  # Uncomment if you have route management
 
-    def register_function(self, plugin_name: str, func_name: str, func: Callable):
+    def _register_function(self, plugin_name: str, func_name: str, func: Callable):
         """
         Register a callable function that can be accessed by other plugins.
 
@@ -62,6 +62,7 @@ class PluginEngineInterface:
             for p_name, funcs in self.functions.items():
                 if func_name in funcs:
                     return funcs[func_name]
+            self.logger.warning(f"Function '{func_name}' not found in any plugin.")
             return None
         else:
             raise ValueError("At least func_name must be provided to retrieve a function.")
@@ -74,7 +75,6 @@ class PluginEngineInterface:
             Dict[str, Dict[str, Callable]]: The entire function registry.
         """
         return self.functions
-
 
     # def register_route(self, route, handler):
     #     """Register an API route with its corresponding handler."""
