@@ -7,7 +7,6 @@ import importlib.util
 
 
 # Define terminal logging module
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Global dictionaries to store plugins and their load order
