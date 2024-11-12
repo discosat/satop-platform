@@ -5,7 +5,7 @@ import yaml
 import subprocess
 import importlib.util
 
-from plugin_engine.plugin_engine_interface import PluginEngineInterface
+# from satop_platform.plugin_engine.plugin import PluginEngineInterface
 
 # Define terminal logging module
 logging.basicConfig(level=logging.INFO)
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 _plugins = {}
 _load_order = []
 
-_plugin_engine_interface = PluginEngineInterface()
+# _plugin_engine_interface = PluginEngineInterface()
 
 def _discover_plugins():
     '''
@@ -115,12 +115,8 @@ def _load_plugins():
             # Get the class from the module using the plugin name
             plugin_class = getattr(module, plugin_name)
 
-            # Create an instance of the plugin without passing the engine interface
-            # The engine and name will be assigned post-instantiation
+            # Create an instance of the plugin
             plugin_instance = plugin_class()
-            
-            # Assign 'plugin_engine_interface' attribute before initialization
-            setattr(plugin_instance, 'plugin_engine', _plugin_engine_interface)
 
             # Store the plugin instance before initialization
             _plugins[plugin_name]['instance'] = plugin_instance
@@ -145,19 +141,19 @@ def _initialize_plugins():
     # Run init hooks and register public functions
     for plugin_name in _load_order:
         plugin = _plugins[plugin_name]['instance']
-        config = _plugins[plugin_name]['config']
-        public_functions = config.get('public_functions', [])
+        # config = _plugins[plugin_name]['config']
+        # public_functions = config.get('public_functions', [])
 
         # Register public functions
-        for func_name in public_functions:
-            func = getattr(plugin, func_name, None)
-            if callable(func):
-                try:
-                    _plugin_engine_interface._register_function(plugin_name, func_name, func)
-                except Exception as e:
-                    logger.error(f"Failed to register function '{func_name}' from plugin '{plugin_name}': {e}")
-            else:
-                logger.warning(f"Public function '{func_name}' not found in plugin '{plugin_name}'.")
+        # for func_name in public_functions:
+        #     func = getattr(plugin, func_name, None)
+        #     if callable(func):
+        #         try:
+        #             _plugin_engine_interface._register_function(plugin_name, func_name, func)
+        #         except Exception as e:
+        #             logger.error(f"Failed to register function '{func_name}' from plugin '{plugin_name}': {e}")
+        #     else:
+        #         logger.warning(f"Public function '{func_name}' not found in plugin '{plugin_name}'.")
 
         # Execute init hook if present
         if hasattr(plugin, 'init') and callable(getattr(plugin, 'init')):

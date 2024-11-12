@@ -3,5 +3,3 @@ entrypoint: main.py
 requirements: []
 dependencies: 
   - Dummy
-public_functions:
-  - run
