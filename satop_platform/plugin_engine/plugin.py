@@ -11,7 +11,13 @@ from satop_platform.components.restapi.restapi import app
 
 
 _functions = dict()
+_routers = list()
 
+router1 = APIRouter()
+@router1.get("/dummy")
+async def dummy():
+    return {"message": "Hello from Plugin... dummy"}
+app.include_router(router1)
 
 class Plugin:
 
@@ -28,10 +34,8 @@ class Plugin:
         self.name = config['name']
 
         self.logger = logging.getLogger(__name__ + '-' + self.name)
-        # self.routes = {}  # Uncomment if you have route management
 
         self.name = self.name
-
 
     def register_function(self, func_name: str, func: Callable):
         """
@@ -98,5 +102,23 @@ class Plugin:
         Args:
             router (fastapi.APIRouter): The router to register.
         """
-        # api.mount_plugin_router(plugin_name=self.name, plugin_router=router)
+        api.mount_plugin_router(plugin_name=self.name, plugin_router=router)
+        self.logger.debug(f"from plugin.register_router... Name: {self.name}, Router: {router}")
+        _routers.append(router)
         app.include_router(router)
+
+        router1 = APIRouter()
+        @router1.get("/dummy")
+        async def dummy():
+            return {"message": "Hello from Dummy plugin"}
+        app.include_router(router1)
+        self.logger.info(f"Registered router for plugin '{self.name}'.")
+
+    def debug_list_routers(self):
+        """List all registered routers.
+
+        Returns:
+            List[fastapi.APIRouter]: List of all registered routers.
+        """
+        self.logger.debug(f"Listing registered router names: {_routers}")
+        

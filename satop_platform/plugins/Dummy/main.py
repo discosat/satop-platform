@@ -8,9 +8,8 @@ class Dummy(Plugin):
         plugin_dir = os.path.dirname(os.path.realpath(__file__))
         super().__init__(plugin_dir)
     
-
     def pre_init(self):
-        # Doesn't work
+        # Doesn't work... Now it does, but WHY?!
         self.register_my_test_router()
 
         # ---
@@ -52,6 +51,7 @@ class Dummy(Plugin):
 
     def post_init(self):
         super().call_function('Dummy', 'run')
+        super().debug_list_routers()
 
     def run(self):
         print("Dummy plugin running")
@@ -66,12 +66,15 @@ class Dummy(Plugin):
             return {"message": "Hello from Dummy plugin"}
         return router
     
-    def register_my_test_router():
+    def register_my_test_router(self):
         router = APIRouter()
 
         @router.get('/test')
         async def route_test():
             return {"message": "Hello from Dummy - test"}
 
-
+        self.logger.debug(f"from Dummy.register_my_test_router... Name: {self.name}, Router: {router}")
+        super().register_router(router)
+        
+        
         app.include_router(router)

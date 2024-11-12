@@ -5,6 +5,18 @@ import uvicorn
 
 from core import config
 
+# def lifecycle():
+#     logger.debug("Starting API")
+#     yield
+#     logger.debug("Stopping API")
+#     pass
+
+# app = FastAPI(
+#     title="SatOP Platform API",
+#     description="Software platform for operations and control of satellite systems.",
+#     version='0.1.0-dev',
+#     lifespan=lifecycle
+# )
 app = FastAPI(
     title="SatOP Platform API",
     description="Software platform for operations and control of satellite systems.",
@@ -39,12 +51,10 @@ def mount_plugin_router(plugin_name:str, plugin_router: APIRouter, tags: list[st
     full_prefix = plugin_path + plugin_router.prefix
 
     logger.debug(f'Mounting route {full_prefix} for plugin API {plugin_name}')
-    try:
-        # app.include_router(plugin_router, prefix=plugin_path, tags=tags)
-        app.include_router(plugin_router)
-        logger.debug(f"Successfully mounted plugin router {plugin_name}")
-    except Exception as e:
-        logger.error(f"Error mounting plugin router {plugin_name}: {e}")
+    
+    # app.include_router(plugin_router, prefix=plugin_path, tags=tags)
+    app.include_router(plugin_router)
+    
 
 def list_routes():
     """List all non-generic routes registered in the API
