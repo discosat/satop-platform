@@ -5,25 +5,20 @@ import yaml
 import subprocess
 import importlib.util
 
-from plugin_engine.plugin_engine_interface import PluginEngineInterface
-
 
 # Define terminal logging module
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 # Global dictionaries to store plugins and their load order
 _plugins = {}
 _load_order = []
-
-_plugin_engine_interface = PluginEngineInterface()
 
 
 def _discover_plugins():
     '''
     Expects plugins to be located in the plugins directory
-    
+
     Expects plugin structure as follows
         Package:
         - config.yaml
@@ -45,10 +40,9 @@ def _discover_plugins():
                 }
     logger.info(f"Discovered plugins: {list(_plugins.keys())}")
 
-
 def _resolve_dependencies():
     '''
-    Check for dependencies defined in each plugins config.yaml
+    Check for dependencies defined in each plugin's config.yaml
     '''
     dependency_graph = defaultdict(list)
 
@@ -82,10 +76,9 @@ def _resolve_dependencies():
     _load_order = stack
     logger.info(f"Plugin load order resolved: {_load_order}")
 
-
 def _install_requirements():
     '''
-    Check for requirements defined in each plugins config.yaml and install
+    Check for requirements defined in each plugin's config.yaml and install
     '''
     all_requirements = []
     for plugin_info in _plugins.values():
@@ -93,12 +86,16 @@ def _install_requirements():
         all_requirements.extend(reqs)
     if all_requirements:
         logger.info(f"Installing requirements: {all_requirements}")
-        subprocess.check_call(['pip', 'install'] + all_requirements)
-
+        try:
+            subprocess.check_call(['pip', 'install'] + all_requirements)
+            logger.info("Successfully installed all requirements.")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to install requirements: {e}")
+            raise
 
 def _load_plugins():
     '''
-    Load plugins based on entrypoint defined in each plugins config.yaml
+    Load plugins based on entrypoint defined in each plugin's config.yaml
 
     Assumes that the name of the plugin corresponds to the name of the entrypoint (case sensitive)
     '''
@@ -107,6 +104,8 @@ def _load_plugins():
             plugin_info = _plugins[plugin_name]
             entrypoint = plugin_info['config']['entrypoint']
             plugin_path = os.path.join(plugin_info['path'], entrypoint)
+
+            # Dynamically load the plugin module
             spec = importlib.util.spec_from_file_location(plugin_name, plugin_path)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
@@ -114,54 +113,50 @@ def _load_plugins():
             # Get the class from the module using the plugin name
             plugin_class = getattr(module, plugin_name)
 
-            # Create an instance of the plugin, passing the engine interface
-            plugin_instance = plugin_class(_plugin_engine_interface)
-            
-            # Store the plugin instance
+            # Create an instance of the plugin
+            plugin_instance = plugin_class()
+
+            # Store the plugin instance before initialization
             _plugins[plugin_name]['instance'] = plugin_instance
             logger.info(f"Loaded plugin: {plugin_name}")
         except Exception as e:
-            logger.error(f"Failed to load plugin {plugin_name}: {e}")
-
-
-
+            logger.error(f"Failed to load plugin '{plugin_name}': {e}")
 
 def _initialize_plugins():
     '''
-    Checks the plugin entrypoint for a "pre_init()", "init()" and "post_init()" method
-     in each loaded plugin and executes these in order 
-
-    Each init method is expected to be able to handle *args
+    Initializes plugins by executing their lifecycle methods and registering public functions.
     '''
     # Run pre-init hooks
     for plugin_name in _load_order:
         plugin = _plugins[plugin_name]['instance']
-        if hasattr(plugin, 'pre_init'):
+        if hasattr(plugin, 'pre_init') and callable(getattr(plugin, 'pre_init')):
             try:
                 plugin.pre_init()
-                logger.info(f"Finished executing pre_init for {plugin_name}")
+                logger.info(f"Finished executing pre_init for '{plugin_name}'")
             except Exception as e:
-                logger.error(f"Error in pre_init of {plugin_name}: {e}")
+                logger.error(f"Error in pre_init of '{plugin_name}': {e}")
 
-    # Run init hooks
+    # Run init hooks and register public functions
     for plugin_name in _load_order:
         plugin = _plugins[plugin_name]['instance']
-        if hasattr(plugin, 'init'):
+        
+        # Execute init hook if present
+        if hasattr(plugin, 'init') and callable(getattr(plugin, 'init')):
             try:
                 plugin.init()
-                logger.info(f"Finished executing init for {plugin_name}")
+                logger.info(f"Finished executing init for '{plugin_name}'")
             except Exception as e:
-                logger.error(f"Error in init of {plugin_name}: {e}")
-    
+                logger.error(f"Error in init of '{plugin_name}': {e}")
+
     # Run post-init hooks
     for plugin_name in _load_order:
         plugin = _plugins[plugin_name]['instance']
-        if hasattr(plugin, 'post_init'):
+        if hasattr(plugin, 'post_init') and callable(getattr(plugin, 'post_init')):
             try:
                 plugin.post_init()
-                logger.info(f"Finished executing post_init for {plugin_name}")
+                logger.info(f"Finished executing post_init for '{plugin_name}'")
             except Exception as e:
-                logger.error(f"Error in post_init of {plugin_name}: {e}")
+                logger.error(f"Error in post_init of '{plugin_name}': {e}")
 
 def run_engine():
     '''
