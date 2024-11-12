@@ -4,7 +4,10 @@ import logging
 from fastapi import APIRouter
 import yaml
 
-from satop_platform.components.restapi.restapi import mount_plugin_router
+# from satop_platform.components.restapi.restapi import mount_plugin_router
+from satop_platform.components.restapi import restapi as api
+
+from satop_platform.components.restapi.restapi import app
 
 
 _functions = dict()
@@ -95,4 +98,5 @@ class Plugin:
         Args:
             router (fastapi.APIRouter): The router to register.
         """
-        mount_plugin_router(plugin_name=self.name, plugin_router=router)
+        # api.mount_plugin_router(plugin_name=self.name, plugin_router=router)
+        app.include_router(router)

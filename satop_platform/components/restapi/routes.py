@@ -7,7 +7,8 @@ def include_route(router:APIRouter,  *args, **kwargs):
     app.include_router(router, prefix=_root_path, *args, **kwargs)
 
 def load_routes():
-    router = APIRouter(prefix=_root_path, tags=['Platform Core'])
+    # router = APIRouter(prefix=_root_path, tags=['Platform Core'])
+    router = APIRouter()
 
     @router.get('/hello')
     async def route_hello():

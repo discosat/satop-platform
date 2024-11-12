@@ -29,6 +29,12 @@ if __name__ == '__main__':
 
     run_engine()
 
+    # insert delay to allow for plugin loading
+    import time
+    time.sleep(1)
+
+
     logger.info('Running server')
     api.load_routes()
+    time.sleep(1)
     api.run_server()
