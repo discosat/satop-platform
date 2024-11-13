@@ -1,40 +1,47 @@
 import logging
 import argparse
 
-from components import restapi as api
+from components.restapi import APIApplication
+from components.restapi.routes import load_routes
 from components import sample
 from plugin_engine.plugin_engine import run_engine
 
+logger = logging.getLogger()
 
-logger = logging.getLogger(__name__)
-
+def load_args():
+    parser = argparse.ArgumentParser('SatOP Platform')
+    parser.add_argument('-v', '--verbose', action='count', default=0)
+    return parser.parse_args()
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser('SatOP Platform')
 
-    parser.add_argument('-v', '--verbose', action='count', default=0)
-
-    args = parser.parse_args()
-
+    logger.setLevel(logging.DEBUG)
+    console_log_handler = logging.StreamHandler()
+    formatter = logging.Formatter("[%(asctime)s] [%(levelname)7s] -- %(filename)20s:%(lineno)-4s -- %(message)s", "%Y-%m-%d %H:%M:%S")
+    console_log_handler.setFormatter(formatter)
+    args = load_args()
     if args.verbose == 1:
-        logging.basicConfig(level=logging.INFO)
-    elif args.verbose > 1: 
-        logging.basicConfig(level=logging.DEBUG)
+        console_log_handler.setLevel(logging.INFO)
+    elif args.verbose > 1:
+        console_log_handler.setLevel(logging.DEBUG)
+    else:
+        console_log_handler.setLevel(logging.WARNING)
+    logger.addHandler(console_log_handler)
 
+    api_app = APIApplication()
+
+    
 
     logger.info('Starting platform')
 
     # sample.init()
 
-    run_engine()
-
-    # insert delay to allow for plugin loading
-    # import time
-    # time.sleep(1)
-
+    run_engine(api_app)
 
     logger.info('Running server')
-    api.load_routes()
-    # time.sleep(1)
-    api.run_server()
+
+    load_routes(api_app)
+    api_app.run_server()
+
+    logger.info('Shutting down')

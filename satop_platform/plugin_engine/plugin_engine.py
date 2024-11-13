@@ -1,13 +1,19 @@
 import logging
 from collections import defaultdict
 import os
+from fastapi import APIRouter
 import yaml
 import subprocess
 import importlib.util
+import re
+
+from components.restapi import APIApplication
 
 
 # Define terminal logging module
 logger = logging.getLogger(__name__)
+
+# TODO: Refactor the globals into the main engine method
 
 # Global dictionaries to store plugins and their load order
 _plugins = {}
@@ -26,13 +32,16 @@ def _discover_plugins():
     file_path = os.path.dirname(os.path.realpath(__file__))
     plugins_path = os.path.join(file_path, '..', 'plugins')
 
-    for plugin_name in os.listdir(plugins_path):
-        plugin_path = os.path.join(plugins_path, plugin_name)
+    for plugin_package in os.listdir(plugins_path):
+        plugin_path = os.path.join(plugins_path, plugin_package)
         if os.path.isdir(plugin_path):
             config_path = os.path.join(plugin_path, 'config.yaml')
             if os.path.exists(config_path):
                 with open(config_path, 'r') as f:
                     config = yaml.safe_load(f)
+                assert "name" in config
+                plugin_name = config.get('name')
+
                 _plugins[plugin_name] = {
                     'config': config,
                     'path': plugin_path
@@ -121,43 +130,44 @@ def _load_plugins():
         except Exception as e:
             logger.error(f"Failed to load plugin '{plugin_name}': {e}")
 
-def _initialize_plugins():
+def _initialize_plugins(api: APIApplication):
     '''
     Initializes plugins by executing their lifecycle methods and registering public functions.
     '''
-    # Run pre-init hooks
-    for plugin_name in _load_order:
-        plugin = _plugins[plugin_name]['instance']
-        if hasattr(plugin, 'pre_init') and callable(getattr(plugin, 'pre_init')):
-            try:
-                plugin.pre_init()
-                logger.info(f"Finished executing pre_init for '{plugin_name}'")
-            except Exception as e:
-                logger.error(f"Error in pre_init of '{plugin_name}': {e}")
 
-    # Run init hooks and register public functions
-    for plugin_name in _load_order:
-        plugin = _plugins[plugin_name]['instance']
-        
-        # Execute init hook if present
-        if hasattr(plugin, 'init') and callable(getattr(plugin, 'init')):
-            try:
-                plugin.init()
-                logger.info(f"Finished executing init for '{plugin_name}'")
-            except Exception as e:
-                logger.error(f"Error in init of '{plugin_name}': {e}")
 
-    # Run post-init hooks
-    for plugin_name in _load_order:
-        plugin = _plugins[plugin_name]['instance']
-        if hasattr(plugin, 'post_init') and callable(getattr(plugin, 'post_init')):
-            try:
-                plugin.post_init()
-                logger.info(f"Finished executing post_init for '{plugin_name}'")
-            except Exception as e:
-                logger.error(f"Error in post_init of '{plugin_name}': {e}")
+    # Run pre init init and post init
+    for step in ['pre_init', 'init', 'post_init']:
+        for plugin_name in _load_order:
+            plugin = _plugins[plugin_name]['instance']
+            if hasattr(plugin, step) and callable(getattr(plugin, step)):
+                try:
+                    getattr(plugin, step)()
+                    logger.info(f"Finished executing {step} for '{plugin_name}'")
+                except Exception as e:
+                    logger.error(f"Error in {step} of '{plugin_name}': {e}")
 
-def run_engine():
+    for plugin_name in _load_order:
+        router: APIRouter | None
+        router = getattr(_plugins[plugin_name]['instance'], 'api_router')
+        if router is None:
+            continue
+
+        plugin_name: str
+        url_friendly_name = plugin_name.lower().replace(' ', '_')
+        url_friendly_name = re.sub(r'[^a-z0-9_]', '', url_friendly_name)
+
+        if plugin_name != url_friendly_name:
+            logger.warning(f'Path for plugin name "{plugin_name}" has been modified to "{url_friendly_name}" for URL safety and consistency')
+
+        num_routes = len(router.routes)
+        if num_routes > 0:
+            logger.info(f"Plugin '{plugin_name}' has {num_routes} routes. Mounting...")
+            api.mount_plugin_router(url_friendly_name, router)
+
+
+
+def run_engine(api: APIApplication):
     '''
     Discover all plugins in the "plugins" directory (expected to be located in root satop_platform directory)
 
@@ -169,4 +179,4 @@ def run_engine():
     _install_requirements()
     _resolve_dependencies()
     _load_plugins()
-    _initialize_plugins()
+    _initialize_plugins(api)

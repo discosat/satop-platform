@@ -1,4 +1,4 @@
 name: Dummy
-entrypoint: main.py
+entrypoint: dummy.py
 requirements: []
 dependencies: []

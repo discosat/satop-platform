@@ -4,22 +4,10 @@ import logging
 from fastapi import APIRouter
 import yaml
 
-# from satop_platform.components.restapi.restapi import mount_plugin_router
-from satop_platform.components.restapi import restapi as api
-
-from satop_platform.components.restapi.restapi import api_app
-
-
 _functions = dict()
-_routers = list()
-
-router1 = APIRouter()
-@router1.get("/dummy")
-async def dummy():
-    return {"message": "Hello from Plugin... dummy"}
-api_app.include_router(router1)
 
 class Plugin:
+    api_router: APIRouter = None
 
     def __init__(self, plugin_dir: str):
         """Initializes the plugin with its configuration.
@@ -33,7 +21,7 @@ class Plugin:
         self.config = config
         self.name = config['name']
 
-        self.logger = logging.getLogger(__name__ + '-' + self.name)
+        self.logger = logging.getLogger(__name__ + '.' + self.name)
 
         self.name = self.name
 
@@ -95,30 +83,3 @@ class Plugin:
             Dict[str, Dict[str, Callable]]: The entire function registry.
         """
         return _functions
-
-    def register_router(self, router: APIRouter):
-        """Helper function to register a router with the plugin.
-
-        Args:
-            router (fastapi.APIRouter): The router to register.
-        """
-        api.mount_plugin_router(plugin_name=self.name, plugin_router=router)
-        self.logger.debug(f"from plugin.register_router... Name: {self.name}, Router: {router}")
-        _routers.append(router)
-        api_app.include_router(router)
-
-        router1 = APIRouter()
-        @router1.get("/dummy")
-        async def dummy():
-            return {"message": "Hello from Dummy plugin"}
-        api_app.include_router(router1)
-        self.logger.info(f"Registered router for plugin '{self.name}'.")
-
-    def debug_list_routers(self):
-        """List all registered routers.
-
-        Returns:
-            List[fastapi.APIRouter]: List of all registered routers.
-        """
-        self.logger.debug(f"Listing registered router names: {_routers}")
-        
