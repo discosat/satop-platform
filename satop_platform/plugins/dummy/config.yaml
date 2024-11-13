@@ -1,0 +1,4 @@
+name: Dummy
+entrypoint: dummy.py
+requirements: []
+dependencies: []

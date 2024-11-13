@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from .sample import test
-from ..restapi import include_route
+from ..restapi import APIApplication
 
 def create_router():
     router = APIRouter(
@@ -18,5 +18,5 @@ def create_router():
     return router
 
 
-def init():
-    include_route(create_router())
+def init(api_app: APIApplication):
+    api_app.include_route(create_router())
