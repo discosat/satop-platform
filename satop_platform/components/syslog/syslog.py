@@ -19,4 +19,12 @@ def init():
         logger.info(event_triplet)
         return 'Created'
     
+    @router.get('/artifacts/{name}')
+    def get_artifact(name: str):
+        pass
+    
+    @router.get('/artifacts/ni/{alg}/{hash}')
+    def get_artifact_ni(alg:str, hash:str):
+        pass
+
     routes.include_route(router)
