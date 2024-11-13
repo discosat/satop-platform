@@ -7,7 +7,7 @@ import yaml
 # from satop_platform.components.restapi.restapi import mount_plugin_router
 from satop_platform.components.restapi import restapi as api
 
-from satop_platform.components.restapi.restapi import app
+from satop_platform.components.restapi.restapi import api_app
 
 
 _functions = dict()
@@ -17,7 +17,7 @@ router1 = APIRouter()
 @router1.get("/dummy")
 async def dummy():
     return {"message": "Hello from Plugin... dummy"}
-app.include_router(router1)
+api_app.include_router(router1)
 
 class Plugin:
 
@@ -105,13 +105,13 @@ class Plugin:
         api.mount_plugin_router(plugin_name=self.name, plugin_router=router)
         self.logger.debug(f"from plugin.register_router... Name: {self.name}, Router: {router}")
         _routers.append(router)
-        app.include_router(router)
+        api_app.include_router(router)
 
         router1 = APIRouter()
         @router1.get("/dummy")
         async def dummy():
             return {"message": "Hello from Dummy plugin"}
-        app.include_router(router1)
+        api_app.include_router(router1)
         self.logger.info(f"Registered router for plugin '{self.name}'.")
 
     def debug_list_routers(self):

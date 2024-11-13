@@ -17,7 +17,7 @@ from core import config
 #     version='0.1.0-dev',
 #     lifespan=lifecycle
 # )
-app = FastAPI(
+api_app = FastAPI(
     title="SatOP Platform API",
     description="Software platform for operations and control of satellite systems.",
     version='0.1.0-dev'
@@ -53,14 +53,14 @@ def mount_plugin_router(plugin_name:str, plugin_router: APIRouter, tags: list[st
     logger.debug(f'Mounting route {full_prefix} for plugin API {plugin_name}')
     
     # app.include_router(plugin_router, prefix=plugin_path, tags=tags)
-    app.include_router(plugin_router)
+    api_app.include_router(plugin_router)
     
 
 def list_routes():
     """List all non-generic routes registered in the API
     """
     routes = []
-    for route in app.routes[4:]:
+    for route in api_app.routes[4:]:
         routes.append({
             'path': route.path,
             'methods': route.methods,

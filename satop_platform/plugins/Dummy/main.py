@@ -1,7 +1,8 @@
 import os
 from plugin_engine.plugin import Plugin
 from fastapi import APIRouter
-from components.restapi.restapi import app
+
+from satop_platform.components.restapi.restapi import api_app
 
 class Dummy(Plugin):
     def __init__(self):
@@ -77,4 +78,4 @@ class Dummy(Plugin):
         super().register_router(router)
         
         
-        app.include_router(router)
+        api_app.include_router(router)
