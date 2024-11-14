@@ -1,6 +1,8 @@
 import logging
 import argparse
 
+import importlib.metadata
+
 from components.restapi import APIApplication
 from components.restapi.routes import load_routes
 from components import sample
@@ -29,11 +31,15 @@ if __name__ == '__main__':
         console_log_handler.setLevel(logging.WARNING)
     logger.addHandler(console_log_handler)
 
-    api_app = APIApplication()
+    application_title = 'SatOP Platform'
+    version = importlib.metadata.version('satop_platform')
 
-    
+    api_app = APIApplication(
+        title=application_title,
+        version=version
+    )
 
-    logger.info('Starting platform')
+    logger.info(f'Starting {application_title} v{version}')
 
     # sample.init()
 
