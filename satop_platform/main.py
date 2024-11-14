@@ -1,5 +1,7 @@
 import logging
 import argparse
+import subprocess
+import os
 
 import importlib.metadata
 
@@ -17,6 +19,9 @@ def load_args():
 
 if __name__ == '__main__':
 
+    this_dir = os.path.dirname(os.path.realpath(__file__)) 
+
+    git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'], cwd=this_dir).decode('utf-8').strip()
 
     logger.setLevel(logging.DEBUG)
     console_log_handler = logging.StreamHandler()
@@ -32,7 +37,7 @@ if __name__ == '__main__':
     logger.addHandler(console_log_handler)
 
     application_title = 'SatOP Platform'
-    version = importlib.metadata.version('satop_platform')
+    version = importlib.metadata.version('satop_platform') + '-' + git_hash
 
     api_app = APIApplication(
         title=application_title,
