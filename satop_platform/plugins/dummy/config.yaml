@@ -2,3 +2,5 @@ name: Dummy
 entrypoint: dummy.py
 requirements: []
 dependencies: []
+capabilities:
+  - http.add_routes

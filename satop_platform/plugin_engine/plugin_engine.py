@@ -20,6 +20,10 @@ _plugins = {}
 _load_order = []
 
 
+def _get_capabilities(plugin_name):
+    return _plugins.get(plugin_name, {}).get('config', {}).get('capabilities', [])
+
+
 def _discover_plugins():
     '''
     Expects plugins to be located in the plugins directory
@@ -126,9 +130,10 @@ def _load_plugins():
 
             # Store the plugin instance before initialization
             _plugins[plugin_name]['instance'] = plugin_instance
-            logger.info(f"Loaded plugin: {plugin_name}")
+            logger.debug(f"Loaded plugin: {plugin_name}")
         except Exception as e:
             logger.error(f"Failed to load plugin '{plugin_name}': {e}")
+            _load_order.remove(plugin_name)
 
 def _initialize_plugins(api: APIApplication):
     '''
@@ -143,27 +148,33 @@ def _initialize_plugins(api: APIApplication):
             if hasattr(plugin, step) and callable(getattr(plugin, step)):
                 try:
                     getattr(plugin, step)()
-                    logger.info(f"Finished executing {step} for '{plugin_name}'")
+                    logger.debug(f"Finished executing {step} for '{plugin_name}'")
                 except Exception as e:
                     logger.error(f"Error in {step} of '{plugin_name}': {e}")
 
     for plugin_name in _load_order:
-        router: APIRouter | None
-        router = getattr(_plugins[plugin_name]['instance'], 'api_router')
-        if router is None:
-            continue
+        capabilities = _get_capabilities(plugin_name)
+        if 'http.add_routes' in capabilities:
+            router: APIRouter | None
+            router = getattr(_plugins[plugin_name]['instance'], 'api_router')
+            if router is None:
+                continue
 
-        plugin_name: str
-        url_friendly_name = plugin_name.lower().replace(' ', '_')
-        url_friendly_name = re.sub(r'[^a-z0-9_]', '', url_friendly_name)
+            plugin_name: str
+            url_friendly_name = re.sub(r'(?<!^)(?=[A-Z])', '_', plugin_name).lower()
+            url_friendly_name = re.sub(r'[^a-z0-9_]', '', url_friendly_name)
 
-        if plugin_name != url_friendly_name:
-            logger.warning(f'Path for plugin name "{plugin_name}" has been modified to "{url_friendly_name}" for URL safety and consistency')
+            if plugin_name != url_friendly_name:
+                logger.warning(f'Path for plugin name "{plugin_name}" has been modified to "{url_friendly_name}" for URL safety and consistency')
 
-        num_routes = len(router.routes)
-        if num_routes > 0:
-            logger.info(f"Plugin '{plugin_name}' has {num_routes} routes. Mounting...")
-            api.mount_plugin_router(url_friendly_name, router)
+            num_routes = len(router.routes)
+            if num_routes > 0:
+                logger.info(f"Plugin '{plugin_name}' has {num_routes} routes. Mounting...")
+                api.mount_plugin_router(url_friendly_name, router)
+        
+        if 'security.authentication_provider' in capabilities:
+            _plugins[plugin_name]['instance'].create_auth_token = lambda k, v: f'{k}: {v}'
+            pass
 
 
 

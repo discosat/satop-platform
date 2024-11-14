@@ -1,0 +1,7 @@
+name: PasswordAuthenticationProvider
+entrypoint: password_authentication_provider.py
+capabilities:
+  - http.add_routes
+  - security.authentication_provider
+requirements: []
+dependencies: []
