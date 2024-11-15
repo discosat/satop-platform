@@ -1,6 +1,7 @@
 import logging
 from collections import defaultdict
 import os
+import sys
 from fastapi import APIRouter
 import yaml
 import subprocess
@@ -34,7 +35,9 @@ def _discover_plugins():
         - python main-plugin
     '''
     file_path = os.path.dirname(os.path.realpath(__file__))
-    plugins_path = os.path.join(file_path, '..', 'plugins')
+    plugins_path = os.path.join(file_path, '../..', 'satop_plugins')
+
+    sys.path.append(plugins_path)
 
     for plugin_package in os.listdir(plugins_path):
         plugin_path = os.path.join(plugins_path, plugin_package)
@@ -48,7 +51,8 @@ def _discover_plugins():
 
                 _plugins[plugin_name] = {
                     'config': config,
-                    'path': plugin_path
+                    'path': plugin_path,
+                    'package_name': plugin_package
                 }
     logger.info(f"Discovered plugins: {list(_plugins.keys())}")
 
@@ -106,45 +110,48 @@ def _install_requirements():
             raise
 
 def _load_plugins():
-    '''
-    Load plugins based on entrypoint defined in each plugin's config.yaml
-
-    Assumes that the name of the plugin corresponds to the name of the entrypoint (case sensitive)
-    '''
+    """Load plugins found during discovery and dependency resolution
+    """
+    failed_plugins = []
     for plugin_name in _load_order:
+        logger.debug(f'Trying to load {plugin_name}')
         try:
             plugin_info = _plugins[plugin_name]
-            entrypoint = plugin_info['config']['entrypoint']
-            plugin_path = os.path.join(plugin_info['path'], entrypoint)
+            package_name = plugin_info.get('package_name')
 
             # Dynamically load the plugin module
-            spec = importlib.util.spec_from_file_location(plugin_name, plugin_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-
-            # Get the class from the module using the plugin name
-            plugin_class = getattr(module, plugin_name)
+            logger.debug(f'Importing plugin package "{package_name}"')
+            module = importlib.import_module(f'{package_name}')
 
             # Create an instance of the plugin
-            plugin_instance = plugin_class()
+            plugin_instance = module.PluginClass()
 
             # Store the plugin instance before initialization
             _plugins[plugin_name]['instance'] = plugin_instance
             logger.debug(f"Loaded plugin: {plugin_name}")
         except Exception as e:
             logger.error(f"Failed to load plugin '{plugin_name}': {e}")
-            _load_order.remove(plugin_name)
+            failed_plugins.append(plugin_name)
+
+    for plugin_name in failed_plugins:
+        logger.debug(f'Will not initialize "{plugin_name}" due to error in loading')
+        _load_order.remove(plugin_name)
+        del _plugins[plugin_name]
+            
 
 def _initialize_plugins(api: APIApplication):
     '''
     Initializes plugins by executing their lifecycle methods and registering public functions.
     '''
 
-
     # Run pre init init and post init
     for step in ['pre_init', 'init', 'post_init']:
         for plugin_name in _load_order:
-            plugin = _plugins[plugin_name]['instance']
+            try:
+                plugin = _plugins[plugin_name]['instance']
+            except KeyError:
+                logger.error(f'Plugin "{plugin_name}" cannot be instantiated')
+                continue
             if hasattr(plugin, step) and callable(getattr(plugin, step)):
                 try:
                     getattr(plugin, step)()
