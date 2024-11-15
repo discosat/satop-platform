@@ -1,7 +1,7 @@
 import logging
 import os
 
-from plugin_engine.plugin import Plugin
+from satop_platform.plugin_engine.plugin import Plugin
 
 logger = logging.getLogger(__name__)
 
