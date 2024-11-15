@@ -2,3 +2,15 @@ name: DummyDepender
 requirements: []
 dependencies: 
   - Dummy
+
+targets:
+  startup:
+    after:
+      - Dummy.startup
+  shutdown:
+    before:
+      - Dummy.shutdown
+  post_shutdown:
+    function: post_shutdown
+    after: 
+      - DummyDepender.shutdown

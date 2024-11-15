@@ -12,23 +12,11 @@ class Dummy(Plugin):
 
         if not self.check_required_capabilities(['http.add_routes']):
             raise RuntimeError
-    
-    def pre_init(self):
-        pass
 
-    def init(self):
         super().register_function('run', self.run)
         super().register_function('return_hello', self.return_hello)
-
-        self.api_router = APIRouter()
-
-        @self.api_router.get("/hello")
-        async def __hello():
-            return {"message": "Hello from Dummy plugin"}
-
-
-    def post_init(self):
-        super().call_function('Dummy', 'run')
+    
+    
 
     def run(self):
         logger.debug("Dummy plugin running")

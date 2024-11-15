@@ -25,6 +25,19 @@ class Plugin:
 
         self.name = self.name
 
+    def startup(self):
+        """
+        Runs on server Startup as plugins are loaded
+        """
+        pass
+
+    def shutdown(self):
+        """
+        Runs on server shutdown
+        TODO: shutdown dependency order???
+        """
+        pass
+
     def register_function(self, func_name: str, func: Callable):
         """
         Register a callable function that can be accessed by other plugins.
