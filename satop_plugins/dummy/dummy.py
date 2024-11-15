@@ -16,7 +16,9 @@ class Dummy(Plugin):
         super().register_function('run', self.run)
         super().register_function('return_hello', self.return_hello)
     
-    
+    def startup(self):
+        super().startup()
+        logger.info("Running Dummy statup protocol")
 
     def run(self):
         logger.debug("Dummy plugin running")
@@ -24,3 +26,6 @@ class Dummy(Plugin):
     def return_hello(self):
         return "Hello from Dummy plugin"
     
+    def shutdown(self):
+        super().shutdown()
+        logger.info(f"'{self.name}' Shutting down gracefully")

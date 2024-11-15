@@ -10,7 +10,3 @@ targets:
   shutdown:
     before:
       - Dummy.shutdown
-  post_shutdown:
-    function: post_shutdown
-    after: 
-      - DummyDepender.shutdown
