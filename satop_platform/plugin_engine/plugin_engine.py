@@ -1,14 +1,18 @@
-import logging
-from collections import defaultdict
-import os
-import sys
-from fastapi import APIRouter
-import yaml
-import subprocess
 import importlib.util
+import logging
+import os
 import re
+import subprocess
+import sys
+from collections import defaultdict
 
+import yaml
+import networkx as nx
+from fastapi import APIRouter
+
+from satop_platform.core.config import merge_dicts
 from components.restapi import APIApplication
+from satop_platform.plugin_engine.plugin import Plugin
 
 
 # Define terminal logging module
@@ -105,7 +109,7 @@ def _install_requirements():
             logger.error(f"Failed to install requirements: {e}")
             raise
 
-def _load_plugins():
+def _load_plugins(api: APIApplication):
     """Load plugins found during discovery and dependency resolution
     """
     failed_plugins = []
@@ -114,6 +118,7 @@ def _load_plugins():
         try:
             plugin_info = _plugins[plugin_name]
             package_name = plugin_info.get('package_name')
+            config: dict = plugin_info.get('config', {})
 
             # Dynamically load the plugin module
             logger.debug(f'Importing plugin package "{package_name}"')
@@ -124,6 +129,12 @@ def _load_plugins():
 
             # Store the plugin instance before initialization
             _plugins[plugin_name]['instance'] = plugin_instance
+
+            caps = config.get('capabilities', [])
+            print(caps)
+            if 'http.add_routes' in caps:
+                _mount_plugin_router(plugin_instance, api)
+
             logger.info(f"Loaded plugin: {plugin_name}")
         except Exception as e:
             logger.error(f"Failed to load plugin '{plugin_name}': {e}")
@@ -135,45 +146,118 @@ def _load_plugins():
         del _plugins[plugin_name]
             
 
-def _initialize_plugins(api: APIApplication):
+def _mount_plugin_router(plugin_instance: Plugin, api: APIApplication):
     '''
-    Initializes plugins by executing their lifecycle methods and registering public functions.
+    Mount the router for a plugin
     '''
+    router = plugin_instance.api_router
+    if router is None:
+        return
 
-    # Run pre init init and post init
-    for step in ['pre_init', 'init', 'post_init']:
-        for plugin_name in _load_order:
-            try:
-                plugin = _plugins[plugin_name]['instance']
-            except KeyError:
-                logger.error(f'Plugin "{plugin_name}" cannot be instantiated')
-                continue
-            if hasattr(plugin, step) and callable(getattr(plugin, step)):
-                try:
-                    getattr(plugin, step)()
-                    logger.info(f"Finished executing {step} for '{plugin_name}'")
-                except Exception as e:
-                    logger.error(f"Error in {step} of '{plugin_name}': {e}")
+    plugin_name = plugin_instance.name
+    url_friendly_name = plugin_name.lower().replace(' ', '_')
+    url_friendly_name = re.sub(r'[^a-z0-9_]', '', url_friendly_name)
 
-    for plugin_name in _load_order:
-        router: APIRouter | None
-        router = getattr(_plugins[plugin_name]['instance'], 'api_router')
-        if router is None:
-            continue
+    if plugin_name != url_friendly_name:
+        logger.warning(f'Path for plugin name "{plugin_name}" has been modified to "{url_friendly_name}" for URL safety and consistency')
 
-        plugin_name: str
-        url_friendly_name = plugin_name.lower().replace(' ', '_')
-        url_friendly_name = re.sub(r'[^a-z0-9_]', '', url_friendly_name)
+    num_routes = len(router.routes)
+    if num_routes > 0:
+        logger.info(f"Plugin '{plugin_name}' has {num_routes} routes. Mounting...")
+        api.mount_plugin_router(url_friendly_name, router)
 
-        if plugin_name != url_friendly_name:
-            logger.warning(f'Path for plugin name "{plugin_name}" has been modified to "{url_friendly_name}" for URL safety and consistency')
+def _graph_targets() -> dict[str, list[callable]]:
+    G = nx.DiGraph()
+    edges = set()
 
-        num_routes = len(router.routes)
-        if num_routes > 0:
-            logger.info(f"Plugin '{plugin_name}' has {num_routes} routes. Mounting...")
-            api.mount_plugin_router(url_friendly_name, router)
+    G.add_node('satop.startup', function=lambda: logger.info('Running plugin start target'))
+    G.add_node('satop.shutdown', function=lambda: logger.info('Running plugin shutdown target'))
+
+    target_configs = {
+        p.get('config',{}).get('name',''): p.get('config',{}).get('targets', [])
+        for p in _plugins.values() if p
+    }
+
+    # Go through all plugins to find targets and dependencies (directed edges)
+    for name, targets in target_configs.items():
+        if not name:
+            raise RuntimeError('Plugin config does not have a name. Cannot create targets')
+        
+        # Makes a root for startup and shutdown from which all startup
+        #  and shutdown methods, respectfully, must be executed after
+        # TODO: protect against malicious shutdown plugins (casuing shutdown to happen pematurely, by linking startup and shutdown)
+        target_defaults = {
+            'startup': {
+                'function': 'startup',
+                'after': [
+                    'satop.startup'
+                ]
+            }, 
+            'shutdown': {
+                'function': 'shutdown',
+                'after': [
+                    'satop.shutdown'
+                ]
+            }
+        }
+
+        targets = merge_dicts(target_defaults, targets)
+
+        for target_name, details in targets.items():
+            target_id = f'{name}.{target_name}'
+            function = None
+            function_name = details.get('function', None)
+            if function_name:
+                function = getattr(_plugins.get(name,{}).get('instance'), function_name)
+
+            G.add_node(target_id, function=function)
+
+            for t in details.get('before', []):
+                edges.add((target_id, t))
+            for t in details.get('after', []):
+                edges.add((t, target_id))
+
+    # Check all edges are valid (targets exist)
+    for p, q in edges:
+        if not G.has_node(p):
+            raise RuntimeWarning(f'Target graph is missing node "{p}" ({p} -> {q})')
+        if not G.has_node(q):
+            raise RuntimeWarning(f'Target graph is missing node "{q}" ({p} -> {q})')
+
+        G.add_edge(p, q)
 
 
+    # Ensure no cycles 
+    # find all independent graphs
+    # iterate through each and mark visited 
+    try:
+        c = nx.find_cycle(G, orientation="original")
+        raise RuntimeError(f"Found cycle in graph during target discovery: {c}")
+    except nx.NetworkXNoCycle:
+        # No cycle found
+        pass
+
+    # Create shutdown and startup call lists
+    trees = dict()
+    for component in nx.weakly_connected_components(G):
+        G_sub = G.subgraph(component)
+        root = [n for n,d in G_sub.in_degree() if d == 0]
+        if len(root) > 1:
+            logger.error(f'Multiple roots in target graph: {root}')
+        trees[root[0]] = [(node, G.nodes[node]) for node in nx.topological_sort(G_sub)]
+
+    logger.debug(f'Target graph root nodes: {trees.keys()}')
+
+    return trees
+
+def execute_target(graph, target_root):
+    targets = graph.get(target_root, [])
+    for target_name, target_attrs in targets:
+        fun = target_attrs.get('function')
+        if fun:
+            logger.info(f'Running target {target_name}')
+            fun()
+        
 
 def run_engine(api: APIApplication):
     '''
@@ -186,5 +270,6 @@ def run_engine(api: APIApplication):
     _discover_plugins()
     _install_requirements()
     _resolve_dependencies()
-    _load_plugins()
-    _initialize_plugins(api)
+    _load_plugins(api)
+    target_graphs = _graph_targets()
+    execute_target(target_graphs, 'satop.startup')

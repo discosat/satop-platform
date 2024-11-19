@@ -7,6 +7,9 @@ import yaml
 _functions = dict()
 
 class Plugin:
+    name: str
+    config: dict
+    logger: logging.Logger
     api_router: APIRouter = None
 
     def __init__(self, plugin_dir: str):
@@ -23,7 +26,18 @@ class Plugin:
 
         self.logger = logging.getLogger(__name__ + '.' + self.name)
 
-        self.name = self.name
+    def startup(self):
+        """
+        Runs on server Startup as plugins are loaded
+        """
+        pass
+
+    def shutdown(self):
+        """
+        Runs on server shutdown
+        TODO: shutdown dependency order???
+        """
+        pass
 
     def register_function(self, func_name: str, func: Callable):
         """
