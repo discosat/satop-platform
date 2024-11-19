@@ -7,6 +7,9 @@ import yaml
 _functions = dict()
 
 class Plugin:
+    name: str
+    config: dict
+    logger: logging.Logger
     api_router: APIRouter = None
 
     def __init__(self, plugin_dir: str):
@@ -22,8 +25,6 @@ class Plugin:
         self.name = config['name']
 
         self.logger = logging.getLogger(__name__ + '.' + self.name)
-
-        self.name = self.name
 
     def startup(self):
         """

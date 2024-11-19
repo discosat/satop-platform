@@ -15,6 +15,11 @@ class Dummy(Plugin):
 
         super().register_function('run', self.run)
         super().register_function('return_hello', self.return_hello)
+
+        self.api_router = APIRouter()
+        @self.api_router.get('/hello')
+        async def __hello():
+            return self.return_hello()
     
     def startup(self):
         super().startup()

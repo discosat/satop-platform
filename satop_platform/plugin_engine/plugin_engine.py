@@ -12,6 +12,7 @@ from fastapi import APIRouter
 
 from satop_platform.core.config import merge_dicts
 from components.restapi import APIApplication
+from satop_platform.plugin_engine.plugin import Plugin
 
 
 # Define terminal logging module
@@ -108,7 +109,7 @@ def _install_requirements():
             logger.error(f"Failed to install requirements: {e}")
             raise
 
-def _load_plugins():
+def _load_plugins(api: APIApplication):
     """Load plugins found during discovery and dependency resolution
     """
     failed_plugins = []
@@ -117,6 +118,7 @@ def _load_plugins():
         try:
             plugin_info = _plugins[plugin_name]
             package_name = plugin_info.get('package_name')
+            config: dict = plugin_info.get('config', {})
 
             # Dynamically load the plugin module
             logger.debug(f'Importing plugin package "{package_name}"')
@@ -127,6 +129,12 @@ def _load_plugins():
 
             # Store the plugin instance before initialization
             _plugins[plugin_name]['instance'] = plugin_instance
+
+            caps = config.get('capabilities', [])
+            print(caps)
+            if 'http.add_routes' in caps:
+                _mount_plugin_router(plugin_instance, api)
+
             logger.info(f"Loaded plugin: {plugin_name}")
         except Exception as e:
             logger.error(f"Failed to load plugin '{plugin_name}': {e}")
@@ -138,43 +146,25 @@ def _load_plugins():
         del _plugins[plugin_name]
             
 
-def _initialize_plugins(api: APIApplication):
+def _mount_plugin_router(plugin_instance: Plugin, api: APIApplication):
     '''
-    Initializes plugins by executing their lifecycle methods and registering public functions.
+    Mount the router for a plugin
     '''
+    router = plugin_instance.api_router
+    if router is None:
+        return
 
-    # Run pre init init and post init
-    for step in ['pre_init', 'init', 'post_init']:
-        for plugin_name in _load_order:
-            try:
-                plugin = _plugins[plugin_name]['instance']
-            except KeyError:
-                logger.error(f'Plugin "{plugin_name}" cannot be instantiated')
-                continue
-            if hasattr(plugin, step) and callable(getattr(plugin, step)):
-                try:
-                    getattr(plugin, step)()
-                    logger.info(f"Finished executing {step} for '{plugin_name}'")
-                except Exception as e:
-                    logger.error(f"Error in {step} of '{plugin_name}': {e}")
+    plugin_name = plugin_instance.name
+    url_friendly_name = plugin_name.lower().replace(' ', '_')
+    url_friendly_name = re.sub(r'[^a-z0-9_]', '', url_friendly_name)
 
-    for plugin_name in _load_order:
-        router: APIRouter | None
-        router = getattr(_plugins[plugin_name]['instance'], 'api_router')
-        if router is None:
-            continue
+    if plugin_name != url_friendly_name:
+        logger.warning(f'Path for plugin name "{plugin_name}" has been modified to "{url_friendly_name}" for URL safety and consistency')
 
-        plugin_name: str
-        url_friendly_name = plugin_name.lower().replace(' ', '_')
-        url_friendly_name = re.sub(r'[^a-z0-9_]', '', url_friendly_name)
-
-        if plugin_name != url_friendly_name:
-            logger.warning(f'Path for plugin name "{plugin_name}" has been modified to "{url_friendly_name}" for URL safety and consistency')
-
-        num_routes = len(router.routes)
-        if num_routes > 0:
-            logger.info(f"Plugin '{plugin_name}' has {num_routes} routes. Mounting...")
-            api.mount_plugin_router(url_friendly_name, router)
+    num_routes = len(router.routes)
+    if num_routes > 0:
+        logger.info(f"Plugin '{plugin_name}' has {num_routes} routes. Mounting...")
+        api.mount_plugin_router(url_friendly_name, router)
 
 def _graph_targets() -> dict[str, list[callable]]:
     G = nx.DiGraph()
@@ -280,7 +270,6 @@ def run_engine(api: APIApplication):
     _discover_plugins()
     _install_requirements()
     _resolve_dependencies()
-    _load_plugins()
+    _load_plugins(api)
     target_graphs = _graph_targets()
     execute_target(target_graphs, 'satop.startup')
-    # _initialize_plugins(api)
