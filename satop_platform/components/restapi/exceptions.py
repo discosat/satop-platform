@@ -32,3 +32,12 @@ class InvalidToken(HTTPException):
 class ExpiredToken(InvalidToken):
     def __init__(self, detail="Token has expired and could not be validated.", headers=None):
         super().__init__(detail, headers)
+
+
+
+class NotImplemented(HTTPException):
+    def __init__(self):
+        super().__init__(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Not Implemented",
+            )

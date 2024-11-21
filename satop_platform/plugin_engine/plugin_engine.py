@@ -201,14 +201,15 @@ def _register_authentication_plugins(plugin_instance: AuthenticationProviderPlug
         identifier_hint = provider_config.get('identifier_hint', identifier_hint)
 
     # Register provider
-    # auth_provider_register(provider_key, identifier_hint)
+    api.authorization.register_provider(provider_key, identifier_hint)
 
-    def _get_auth_token(self, user_id: str):
+    def _get_auth_token(user_id: str):
         # Get uuid
-        uuid = auth_get_uuid(provider_key, user_id)
+        uuid = api.authorization.get_uuid(provider_key, user_id)
         if not uuid:
             raise exceptions.InvalidCredentials
-        token = auth_create_token(uuid)
+        # TODO: Make it possible for plugin to specify expiry, e.g. for long-lived application keys
+        token = api.authorization.create_token(uuid)
         return token
 
     _plugins.get(plugin_name).instance.create_auth_token = _get_auth_token

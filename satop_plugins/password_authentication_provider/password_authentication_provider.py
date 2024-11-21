@@ -9,25 +9,25 @@ from fastapi.responses import Response
 
 from satop_platform.plugin_engine.plugin import AuthenticationProviderPlugin
 from satop_platform.components.restapi import exceptions
-from satop_platform.components.restapi.auth import auth_scope
+from satop_platform.components.authorization.auth import auth_scope
 
 # from .password_authentication_provider import models
 from pydantic import BaseModel
 
 class HashedCredentials(sqlmodel.SQLModel, table=True):
-    username: str = sqlmodel.Field(unique=True, primary_key=True)
+    email: str = sqlmodel.Field(unique=True, primary_key=True)
     password_hash: bytes
     salt: bytes
 
 class PasswordCredentials(BaseModel):
-    username: str
+    email: str
     password: str
 
 class Token(BaseModel):
     token: str
 
 class PasswordUser(BaseModel):
-    username: str
+    email: str
 
 logger = logging.getLogger('plugin.password_authentication_provider')
 
@@ -51,8 +51,8 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
                                   }
                               })
         async def __create_token(credentials: PasswordCredentials):
-            if self.validate(credentials.username, credentials.password):
-                return Token(token = self.create_auth_token(credentials.username))
+            if self.validate(credentials.email, credentials.password):
+                return Token(token = self.create_auth_token(credentials.email))
             
             raise exceptions.InvalidCredentials
 
@@ -64,15 +64,15 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
                                   },
                                   status.HTTP_201_CREATED: {}
                               },
-                              dependencies=[
-                                  Depends(auth_scope(['users.create']))
-                              ]
+                            #   dependencies=[
+                            #       Depends(auth_scope(['users.create']))
+                            #   ]
                              )
         async def __create_user(credentials: PasswordCredentials):
             with sqlmodel.Session(self.sql_engine) as session:
                 salt = os.urandom(16)
                 hashed_pass = self.hash_function(credentials.password, salt)
-                entry = HashedCredentials(username=credentials.username, password_hash=hashed_pass, salt=salt)
+                entry = HashedCredentials(email=credentials.email, password_hash=hashed_pass, salt=salt)
                 try:
                     session.add(entry)
 
@@ -85,9 +85,9 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
         async def __get_all_users():
             return self.get_users()
 
-    def get_user(self, username: str):
+    def get_user(self, email: str):
         with sqlmodel.Session(self.sql_engine) as session:
-            statement = sqlmodel.select(HashedCredentials).where(HashedCredentials.username == username)
+            statement = sqlmodel.select(HashedCredentials).where(HashedCredentials.email == email)
             user = session.exec(statement).first()
             return user
 
@@ -95,10 +95,10 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
         with sqlmodel.Session(self.sql_engine) as session:
             statement = sqlmodel.select(HashedCredentials)
             users = session.exec(statement).all()
-            return list(map(lambda u: PasswordUser(username=u.username) , users))
+            return list(map(lambda u: PasswordUser(email=u.email) , users))
 
-    def validate(self, username: str, password: str) -> bool: 
-        user = self.get_user(username)
+    def validate(self, email: str, password: str) -> bool: 
+        user = self.get_user(email)
         if not user: 
             return False
         
