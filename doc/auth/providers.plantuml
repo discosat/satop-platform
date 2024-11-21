@@ -1,0 +1,76 @@
+@startuml
+
+actor user
+actor admin
+box "Satop Platform"
+participant "Platform" as app
+participant "FastAPI" as api
+database "Authorization" as auth
+participant "Plugin engine" as eng
+end box
+
+participant "Authentication\nprovider plugin" as plugin
+
+activate app
+app -> auth : Init auth
+
+app -> eng ++ : Load plugins
+eng -> plugin ++ : Load
+
+plugin -> plugin : Connect to internal database
+plugin -> plugin : Setup API routes
+
+eng -> plugin : Dependency injection\nof authorization method
+
+eng -> eng : Evaluate target graph
+eng -> plugin ++: Execute target \n//satop.startup//
+deactivate plugin
+
+====
+
+group Create user
+
+user -> admin : Give identity
+admin -> api ++: Create user\n""name, scopes, type=person""
+api -> auth ++
+return
+api --> admin --: ""UUID""
+
+admin -> api ++: Connect to provider\n""UUID, provider, identifier(e.g. email)""
+api -> auth ++
+return
+api --> admin -- : success
+
+admin -> plugin ++ : Create user in provider (if necessary)
+return success
+admin -> user : You now have access
+
+end group
+
+
+group User login
+
+user -> plugin ++: Enter credentials
+plugin -> plugin : Validate credentials
+plugin -> auth ++ : get user UUID\n""provider name, identifier (email)""
+return ""UUID""
+plugin -> auth ++ : Create token (UUID)
+return token
+plugin --> user -- : token
+
+end group
+
+====
+
+app -> eng : stop
+eng -> plugin ++: Execute target \n//satop.shutdown//
+plugin --> eng
+deactivate plugin
+deactivate plugin
+deactivate eng
+
+
+deactivate eng
+
+
+@enduml
