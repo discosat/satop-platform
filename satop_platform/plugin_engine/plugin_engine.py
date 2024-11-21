@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import importlib.util
 import logging
 import os
@@ -5,6 +6,7 @@ import re
 import subprocess
 import sys
 from collections import defaultdict
+from typing import Optional
 
 import yaml
 import networkx as nx
@@ -21,7 +23,14 @@ logger = logging.getLogger(__name__)
 # TODO: Refactor the globals into the main engine method
 
 # Global dictionaries to store plugins and their load order
-_plugins = {}
+@dataclass
+class PluginDictItem:
+    config: dict[str, any]
+    path: str
+    package_name: str
+    instance: Optional[Plugin] = None
+
+_plugins : dict[str, PluginDictItem] = {}
 _load_order = []
 
 
@@ -53,11 +62,11 @@ def _discover_plugins():
                 assert "name" in config
                 plugin_name = config.get('name')
 
-                _plugins[plugin_name] = {
-                    'config': config,
-                    'path': plugin_path,
-                    'package_name': plugin_package
-                }
+                _plugins[plugin_name] = PluginDictItem(
+                    config,
+                    plugin_path,
+                    plugin_package
+                )
     logger.info(f"Discovered plugins: {list(_plugins.keys())}")
 
 def _resolve_dependencies():
@@ -68,7 +77,7 @@ def _resolve_dependencies():
 
     # Build dependency graph
     for plugin_name, plugin_info in _plugins.items():
-        dependencies = plugin_info['config'].get('dependencies', [])
+        dependencies = plugin_info.config.get('dependencies', [])
         for dep in dependencies:
             dependency_graph[plugin_name].append(dep)
     
@@ -102,7 +111,7 @@ def _install_requirements():
     '''
     all_requirements = []
     for plugin_info in _plugins.values():
-        reqs = plugin_info['config'].get('requirements', [])
+        reqs = plugin_info.config.get('requirements', [])
         all_requirements.extend(reqs)
     if all_requirements:
         logger.info(f"Installing requirements: {all_requirements}")
@@ -121,8 +130,8 @@ def _load_plugins(api: APIApplication):
         logger.debug(f'Trying to load {plugin_name}')
         try:
             plugin_info = _plugins[plugin_name]
-            package_name = plugin_info.get('package_name')
-            config: dict = plugin_info.get('config', {})
+            package_name = plugin_info.package_name
+            config = plugin_info.config
 
             # Dynamically load the plugin module
             logger.debug(f'Importing plugin package "{package_name}"')
@@ -132,7 +141,7 @@ def _load_plugins(api: APIApplication):
             plugin_instance = module.PluginClass()
 
             # Store the plugin instance before initialization
-            _plugins[plugin_name]['instance'] = plugin_instance
+            plugin_info.instance = plugin_instance
             logger.debug(f"Loaded plugin: {plugin_name}")
 
             caps = config.get('capabilities', [])
@@ -182,7 +191,7 @@ def _graph_targets() -> dict[str, list[callable]]:
     G.add_node('satop.shutdown', function=lambda: logger.info('Running plugin shutdown target'))
 
     target_configs = {
-        p.get('config',{}).get('name',''): p.get('config',{}).get('targets', [])
+        p.config.get('name', ''): p.config.get('targets', [])
         for p in _plugins.values() if p
     }
 
@@ -216,7 +225,10 @@ def _graph_targets() -> dict[str, list[callable]]:
             function = None
             function_name = details.get('function', None)
             if function_name:
-                function = getattr(_plugins.get(name,{}).get('instance'), function_name)
+                inst = _plugins.get(name).instance
+                if inst is None:
+                    raise RuntimeError('Plugin instance not initialized')
+                function = getattr(inst, function_name)
 
             G.add_node(target_id, function=function)
 
