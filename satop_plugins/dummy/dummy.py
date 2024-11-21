@@ -1,6 +1,6 @@
 import os
 import logging
-from plugin_engine.plugin import Plugin
+from satop_platform.plugin_engine.plugin import Plugin
 from fastapi import APIRouter
 
 logger = logging.getLogger('plugin.dummy')

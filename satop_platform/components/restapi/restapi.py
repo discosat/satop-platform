@@ -18,11 +18,6 @@ class APIApplication:
 
         self.api_app = FastAPI(*args, **kwargs)
 
-        #     title="SatOP Platform API",
-        #     description="Software platform for operations and control of satellite systems.",
-        #     version='0.1.0-dev'
-        # )
-
     def mount_plugin_router(self, plugin_name:str, plugin_router: APIRouter, tags: list[str] = None, plugin_path: str=None):
         """Mount a router from a plugin
 

@@ -46,7 +46,7 @@ class Plugin:
         _functions[self.name][func_name] = func
 
 
-        self.logger.info(f"Registered function '{func_name}' from plugin '{self.name}'.")
+        self.logger.debug(f"Registered function '{func_name}' from plugin '{self.name}'.")
 
     def call_function(self, plugin_name: str, func_name: str, *args, **kwargs):
         """Retreive and call a registered function.
