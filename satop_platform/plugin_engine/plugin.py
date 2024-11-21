@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Dict
+from typing import Dict, Iterable
 import logging
 from fastapi import APIRouter
 import yaml
@@ -7,6 +7,9 @@ import yaml
 _functions = dict()
 
 class Plugin:
+    name: str
+    config: dict
+    logger: logging.Logger
     api_router: APIRouter = None
 
     def __init__(self, plugin_dir: str):
@@ -23,7 +26,18 @@ class Plugin:
 
         self.logger = logging.getLogger(__name__ + '.' + self.name)
 
-        self.name = self.name
+    def startup(self):
+        """
+        Runs on server Startup as plugins are loaded
+        """
+        pass
+
+    def shutdown(self):
+        """
+        Runs on server shutdown
+        TODO: shutdown dependency order???
+        """
+        pass
 
     def register_function(self, func_name: str, func: Callable):
         """
@@ -83,3 +97,12 @@ class Plugin:
             Dict[str, Dict[str, Callable]]: The entire function registry.
         """
         return _functions
+    
+    def check_required_capabilities(self, required: Iterable[str]):
+        caps = set(self.config.get('capabilities', []))
+        reqs = set(required)
+        check = reqs.issubset(caps)
+        
+        if not check:
+            self.logger.error(f'Plugin "{self.name}" does not have the required capabilities: {reqs - caps}')
+        return check
