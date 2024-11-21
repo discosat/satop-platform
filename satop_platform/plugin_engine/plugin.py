@@ -106,3 +106,7 @@ class Plugin:
         if not check:
             self.logger.error(f'Plugin "{self.name}" does not have the required capabilities: {reqs - caps}')
         return check
+
+class AuthenticationProviderPlugin(Plugin):
+    def create_auth_token(self, user_id: str):
+        self.logger.warning('create_auth_token has not been initialized.')

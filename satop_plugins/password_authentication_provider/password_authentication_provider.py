@@ -1,61 +1,126 @@
 import os
 import logging
-from collections.abc import Callable
+from hashlib import scrypt
 
-from fastapi import APIRouter
+import sqlmodel
+import sqlalchemy.exc 
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 
-from satop_platform.plugin_engine.plugin import Plugin
+from satop_platform.plugin_engine.plugin import AuthenticationProviderPlugin
 from satop_platform.components.restapi import exceptions
+from satop_platform.components.restapi.auth import auth_scope
 
 # from .password_authentication_provider import models
 from pydantic import BaseModel
 
-class Credentials(BaseModel):
+class HashedCredentials(sqlmodel.SQLModel, table=True):
+    username: str = sqlmodel.Field(unique=True, primary_key=True)
+    password_hash: bytes
+    salt: bytes
+
+class PasswordCredentials(BaseModel):
     username: str
     password: str
 
+class Token(BaseModel):
+    token: str
+
+class PasswordUser(BaseModel):
+    username: str
+
 logger = logging.getLogger('plugin.password_authentication_provider')
 
-class PasswordAuthenticationProvider(Plugin):
-    create_auth_token: Callable[[str, str], str] = lambda identifier_key, identifier_value: 'create_auth_token has not been initialized'
-
+class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
     def __init__(self):
         plugin_dir = os.path.dirname(os.path.realpath(__file__))
         super().__init__(plugin_dir)
-    
-    def pre_init(self):
-        pass
 
-    def init(self):
-        self.api_router = APIRouter()
+        self.sql_engine = sqlmodel.create_engine('sqlite:///users.db')
+        # sqlmodel.SQLModel.metadata.create_all(self.sql_engine)
+        # if not inspect(self.sql_engine).has_table(HashedCredentials.__tablename__):
+        HashedCredentials.__table__.create(self.sql_engine, checkfirst=True)
 
-        @self.api_router.post('/token')
-        async def __create_token(credentials: Credentials):
+        self.api_router = APIRouter(prefix='/login', tags=['Password Authentication'])
+
+        @self.api_router.post('/token',
+                              response_model=Token,
+                              responses= {
+                                  status.HTTP_401_UNAUTHORIZED: {
+                                      'detail': 'string'
+                                  }
+                              })
+        async def __create_token(credentials: PasswordCredentials):
             if self.validate(credentials.username, credentials.password):
-                return {'token': self.create_auth_token('username', credentials.username)}
+                return Token(token = self.create_auth_token(credentials.username))
             
             raise exceptions.InvalidCredentials
 
-    def post_init(self):
-        pass
+        @self.api_router.post('/user',
+                              status_code=status.HTTP_201_CREATED,
+                              responses= {
+                                  status.HTTP_409_CONFLICT: {
+                                      'detail': 'string'
+                                  },
+                                  status.HTTP_201_CREATED: {}
+                              },
+                              dependencies=[
+                                  Depends(auth_scope(['users.create']))
+                              ]
+                             )
+        async def __create_user(credentials: PasswordCredentials):
+            with sqlmodel.Session(self.sql_engine) as session:
+                salt = os.urandom(16)
+                hashed_pass = self.hash_function(credentials.password, salt)
+                entry = HashedCredentials(username=credentials.username, password_hash=hashed_pass, salt=salt)
+                try:
+                    session.add(entry)
 
-
-    def db_connect(self):
-        pass
+                    session.commit()
+                    return Response(status_code=status.HTTP_201_CREATED)
+                except sqlalchemy.exc.IntegrityError:
+                    raise HTTPException(status.HTTP_409_CONFLICT, 'User already exists')
+        
+        @self.api_router.get('/users', response_model=list[PasswordUser])
+        async def __get_all_users():
+            return self.get_users()
 
     def get_user(self, username: str):
-        fake_users = {
-            'test': {'name': 'Test user', 'password': '1234'},
-            'demo': {'name': 'Demo account', 'password': 'omed'}
-        }
-        return fake_users.get(username, None)
+        with sqlmodel.Session(self.sql_engine) as session:
+            statement = sqlmodel.select(HashedCredentials).where(HashedCredentials.username == username)
+            user = session.exec(statement).first()
+            return user
+
+    def get_users(self):
+        with sqlmodel.Session(self.sql_engine) as session:
+            statement = sqlmodel.select(HashedCredentials)
+            users = session.exec(statement).all()
+            return list(map(lambda u: PasswordUser(username=u.username) , users))
 
     def validate(self, username: str, password: str) -> bool: 
         user = self.get_user(username)
         if not user: 
             return False
         
-        if not user.get('password') == password:
-            return False
+        calculated_hash = self.hash_function(password, user.salt)
+
+        if calculated_hash == user.password_hash:
+            return True
         
-        return True
+        return False
+
+    def hash_function(self, password: bytes | str, salt: bytes | str):
+        # OWASP recommendation: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+        #   scrypt is selected, as it is in the standard library.
+        if isinstance(password, str):
+            password = password.encode()
+        if isinstance(salt, str):
+            salt = salt.encode()
+        
+        n = 2**17
+        r = 8
+        p = 1
+        maxmem = n * 2 * r * 65
+        dklen = 64
+
+        return scrypt(password, salt=salt, n=n, r=r, p=p, maxmem=maxmem, dklen=dklen)

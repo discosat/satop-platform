@@ -1,7 +1,11 @@
-name: PasswordAuthenticationProvider
+name: Password Authentication Provider
 entrypoint: password_authentication_provider.py
 capabilities:
   - http.add_routes
   - security.authentication_provider
 requirements: []
 dependencies: []
+
+authentication_provider:
+  provider_key: email_password
+  identifier_hint: Email address of the user

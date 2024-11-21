@@ -6,6 +6,7 @@ import re
 import subprocess
 import sys
 from collections import defaultdict
+import traceback
 from typing import Optional
 
 import yaml
@@ -13,8 +14,8 @@ import networkx as nx
 from fastapi import APIRouter
 
 from satop_platform.core.config import merge_dicts
-from components.restapi import APIApplication
-from satop_platform.plugin_engine.plugin import Plugin
+from components.restapi import APIApplication, exceptions
+from satop_platform.plugin_engine.plugin import AuthenticationProviderPlugin, Plugin
 
 
 # Define terminal logging module
@@ -151,10 +152,13 @@ def _load_plugins(api: APIApplication):
                     _mount_plugin_router(plugin_instance, api)
                 else:
                     raise RuntimeWarning(f"{plugin_name} has created a route but does not have the required capabilities to mount it. Ensure it has 'http.add_routes' in the plugin's 'config.yaml'")
+            if 'security.authentication_provider' in caps:
+                _register_authentication_plugins(plugin_instance, api)
 
             logger.info(f"Loaded plugin: {plugin_name}")
         except Exception as e:
             logger.error(f"Failed to load plugin '{plugin_name}': {e}")
+            print(traceback.format_exc())
             failed_plugins.append(plugin_name)
 
     for plugin_name in failed_plugins:
@@ -183,6 +187,32 @@ def _mount_plugin_router(plugin_instance: Plugin, api: APIApplication):
         logger.info(f"Plugin '{plugin_name}' has {num_routes} routes. Mounting...")
         api.mount_plugin_router(url_friendly_name, router)
 
+def _register_authentication_plugins(plugin_instance: AuthenticationProviderPlugin, api: APIApplication):
+    plugin_name = plugin_instance.name
+
+    config = _plugins.get(plugin_name).config
+    provider_config = config.get('authentication_provider')
+
+    provider_key = plugin_name
+    identifier_hint = None
+
+    if provider_config:
+        provider_key = provider_config.get('provider_key', provider_key)
+        identifier_hint = provider_config.get('identifier_hint', identifier_hint)
+
+    # Register provider
+    # auth_provider_register(provider_key, identifier_hint)
+
+    def _get_auth_token(self, user_id: str):
+        # Get uuid
+        uuid = auth_get_uuid(provider_key, user_id)
+        if not uuid:
+            raise exceptions.InvalidCredentials
+        token = auth_create_token(uuid)
+        return token
+
+    _plugins.get(plugin_name).instance.create_auth_token = _get_auth_token
+
 def _graph_targets() -> dict[str, list[callable]]:
     G = nx.DiGraph()
     edges = set()
@@ -191,7 +221,7 @@ def _graph_targets() -> dict[str, list[callable]]:
     G.add_node('satop.shutdown', function=lambda: logger.info('Running plugin shutdown target'))
 
     target_configs = {
-        p.config.get('name', ''): p.config.get('targets', [])
+        p.config.get('name', ''): p.config.get('targets', dict())
         for p in _plugins.values() if p
     }
 
