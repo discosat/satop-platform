@@ -132,8 +132,11 @@ def _load_plugins(api: APIApplication):
 
             caps = config.get('capabilities', [])
             print(caps)
-            if 'http.add_routes' in caps:
-                _mount_plugin_router(plugin_instance, api)
+            if plugin_instance.api_router:
+                if 'http.add_routes' in caps:
+                    _mount_plugin_router(plugin_instance, api)
+                else:
+                    raise RuntimeWarning(f"{plugin_name} has created a route but does not have the required capabilities to mount it. Ensure it has 'http.add_routes' in the plugin's 'config.yaml'")
 
             logger.info(f"Loaded plugin: {plugin_name}")
         except Exception as e:
