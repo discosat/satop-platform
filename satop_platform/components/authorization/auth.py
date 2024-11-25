@@ -17,7 +17,6 @@ from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel
 
 from sqlmodel import Session
-from .models import User2 as User
 import logging
 
 # from passlib.context import CryptContext
