@@ -12,7 +12,7 @@ def load_routes(api_app: APIApplication):
     
     api_app.include_router(root_router)
 
-    router = APIRouter(prefix=api_app._root_path, tags=['Platform Core'])
+    router = APIRouter(tags=['Platform Core'])
 
     @router.get('/hello')
     async def route_hello():

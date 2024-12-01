@@ -5,6 +5,7 @@ from components.restapi import APIApplication
 from components.restapi.routes import load_routes
 from components import sample
 from plugin_engine.plugin_engine import run_engine
+from satop_platform.components.groundstation.connector import GroundstationConnector
 
 logger = logging.getLogger()
 
@@ -30,6 +31,7 @@ if __name__ == '__main__':
     logger.addHandler(console_log_handler)
 
     api_app = APIApplication()
+    gsc = GroundstationConnector(api_app)
 
     
 
