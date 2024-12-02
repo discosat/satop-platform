@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Annotated, Iterable
 import uuid
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, APIRouter
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 from sqlalchemy import Engine
@@ -22,8 +22,10 @@ import logging
 # from passlib.context import CryptContext
 
 SECRET_KEY = "INSERT_SECRET_KEY_HERE"
+REFRESH_SECRET_KEY = "INSERT_REFRESH_SECRET_KEY_HERE"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MIMUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+REFRESH_TOKEN_EXPIRE_DAYS = 1
 
 auth_scheme = HTTPBearer(
     scheme_name='jwt_token',
@@ -31,11 +33,11 @@ auth_scheme = HTTPBearer(
 )
 
 # Missing:
-# - Token creation
-# - Token validation
 # - Token scopes (User Scopes)
-# - Token expiration/refresh
+# - Match Authentication Plugin Token with User, so different plugins can be used for different users (Depends() function?)
 # - Make sure Token can decode (So we can validate it)
+
+router = APIRouter(prefix='/tokens', tags=['Token Authorization'])
 
 def decode_token(token):
     return jwt.decode(token)
@@ -50,16 +52,32 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def create_refresh(token):
-    pass
+def create_refresh_token(data: dict, expires_delta: timedelta | None = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(days=1)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, REFRESH_SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
-#@app.get("/verify-token/{token}")
-#async def verify_token(token: str):
-#    verify_token(token=token)
-#    return {"message": "Token is valid"}
+@router.get("/verify-token/{token}")
+async def verify_token(token: str):
+    verify_token(token=token)
+    return {"message": "Token is valid"}
 
 def validate_token(token:str):
-    pass
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise exceptions.InvalidToken()
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise exceptions.TokenExpired()
+    except jwt.InvalidTokenError:
+        raise exceptions.InvalidToken()
 
 def auth_scope(needed_scopes: Iterable[str] | str):
     def f(credentials: Annotated[HTTPAuthorizationCredentials, Depends(auth_scheme)]):
