@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from sqlmodel import Session
 import logging
 
-# from passlib.context import CryptContext
+#from passlib.context import CryptContext
 
 SECRET_KEY = "INSERT_SECRET_KEY_HERE"
 REFRESH_SECRET_KEY = "INSERT_REFRESH_SECRET_KEY_HERE"
@@ -30,6 +30,7 @@ REFRESH_TOKEN_EXPIRE_DAYS = 1
 auth_scheme = HTTPBearer(
     scheme_name='jwt_token',
     description='JWT Token',
+    scopes={},
 )
 
 # Missing:
@@ -38,6 +39,8 @@ auth_scheme = HTTPBearer(
 # - Make sure Token can decode (So we can validate it)
 
 router = APIRouter(prefix='/tokens', tags=['Token Authorization'])
+
+#pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def decode_token(token):
     return jwt.decode(token)
@@ -84,9 +87,10 @@ def auth_scope(needed_scopes: Iterable[str] | str):
         token = credentials.credentials
         print(token)
 
-        # Verify Token
+        # Validate Token
+        payload = validate_token(token)
 
-        token_scopes = set() # TODO: fetch user/token scopes
+        token_scopes = set(payload.get("scopes", [])) # TODO: fetch user/token scopes
 
         if (isinstance(needed_scopes, str) and needed_scopes in token_scopes) \
             or (set(needed_scopes).issubset(token_scopes)):
@@ -167,7 +171,14 @@ class PlatformAuthorization:
         return new_entity
 
     def get_entity_details(self, _uuid: str):
-        raise exceptions.NotImplemented
+        with sqlmodel.Session(self.engine) as session:
+            statement = sqlmodel.select(models.Entity).where(models.Entity.id == uuid.UUID(_uuid))
+            entity = session.exec(statement).first()
+
+            if not entity:
+                raise exceptions.NotFound(f"Entity {_uuid} not found")
+
+            return entity
 
     def connect_entity_idp(self, _uuid: str, provider: models.ProviderIdentityBase):
         aidp = models.AuthenticationIdentifiers(
@@ -183,7 +194,17 @@ class PlatformAuthorization:
         return aidp
 
     def get_identity_providers(self):
-        raise exceptions.NotImplemented
+        with sqlmodel.Session(self.engine) as session:
+            statement = sqlmodel.select(models.AuthenticationIdentifiers)
+            providers = session.exec(statement).all()
+            return providers
 
     def get_idp_details(self, provider_name: str):
-        raise exceptions.NotImplemented
+        with sqlmodel.Session(self.engine) as session:
+            statement = sqlmodel.select(models.AuthenticationIdentifiers).where(models.AuthenticationIdentifiers.provider == provider_name)
+            provider = session.exec(statement).all()
+
+            if not provider:
+                raise exceptions.NotFound(f"Provider {provider_name} not found")
+
+            return provider
