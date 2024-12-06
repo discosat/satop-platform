@@ -2,6 +2,10 @@
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+where = ["."]  
+include = ["satop_platform"]
+
 [project]
 name = "satop_platform"
 version = "0.1.0"
