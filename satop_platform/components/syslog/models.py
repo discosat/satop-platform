@@ -15,7 +15,7 @@ class System(Actor):
     version: str
     system_id: str
 
-class Action(BaseModel):
+class Predicate(BaseModel):
     uri: str
     timestamp: int
 
@@ -27,5 +27,5 @@ class Artifact(BaseModel):
 
 class Triplet(BaseModel):
     subject: Union[User, System]
-    action: Action
+    predicate: Predicate
     object: Union[User, System, Artifact]
