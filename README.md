@@ -32,7 +32,7 @@ source .venv/bin/activate
 ### For development
 ```sh
 # Install SatOP as a development package
-pip install -editable .
+pip install --editable .
 ```
 
 ### For production
