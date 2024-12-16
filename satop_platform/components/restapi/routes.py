@@ -26,7 +26,7 @@ def load_routes(api_app: APIApplication):
 
 
 
-    auth_router = APIRouter(prefix=api_app._root_path+'/auth', tags=["Authorization"])
+    auth_router = APIRouter(prefix='/auth', tags=["Authorization"])
 
     @auth_router.get('/entities')
     async def get_entities():
