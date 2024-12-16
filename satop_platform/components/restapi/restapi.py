@@ -13,6 +13,7 @@ class APIApplication:
 
     _api_config: dict[str, any]
     _root_path: str
+    _router: APIRouter
 
     def __init__(self, *args, **kwargs):
         self._api_config = config.load_config('api.yml')
@@ -20,6 +21,7 @@ class APIApplication:
 
         self.api_app = FastAPI(*args, **kwargs)
         self.authorization = PlatformAuthorization()
+        self._router = APIRouter(prefix=self._root_path)
 
     def mount_plugin_router(self, plugin_name:str, plugin_router: APIRouter, tags: list[str] = None, plugin_path: str=None):
         """Mount a router from a plugin
@@ -36,7 +38,6 @@ class APIApplication:
 
         if plugin_path is None:
             plugin_path = self._api_config.get('plugin_path', '/plugins')
-        plugin_path = self._root_path + plugin_path
 
         if plugin_router.prefix == '':
             plugin_path += '/' + plugin_name
@@ -49,25 +50,27 @@ class APIApplication:
 
     def include_router(self, *args, **kwargs):
         # TODO: DOCSTRING
-        self.api_app.include_router(*args, **kwargs)
+        self._router.include_router(*args, **kwargs)
     
-    def list_routes(self):
-        """List all non-generic routes registered in the API
-        """
-        routes = []
-        for route in self.api_app.routes[4:]:
-            routes.append({
-                'path': route.path,
-                'methods': route.methods,
-                'name': route.name
-            })
-        return routes
+    # def list_routes(self):
+    #     """List all non-generic routes registered in the API
+    #     """
+    #     routes = []
+    #     for route in self.api_app.routes[4:]:
+    #         routes.append({
+    #             'path': route.path,
+    #             'methods': route.methods,
+    #             'name': route.name
+    #         })
+    #     return routes
     
     def run_server(self, host="127.0.0.1", port=7889):
+        self.api_app.include_router(self._router)
+        
         host = self._api_config.get('host', host)
         port = self._api_config.get('port', port)
 
         logger.debug(f"API app: {self.api_app}")
-        logger.debug(f"Listing routes custom: {self.list_routes()}")
+        # logger.debug(f"Listing routes custom: {self.list_routes()}")
         logger.info(f'Starting server on {host}:{port}')
         uvicorn.run(self.api_app, host=host, port=port)
