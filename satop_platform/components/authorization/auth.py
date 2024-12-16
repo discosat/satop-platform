@@ -30,7 +30,6 @@ REFRESH_TOKEN_EXPIRE_DAYS = 1
 auth_scheme = HTTPBearer(
     scheme_name='jwt_token',
     description='JWT Token',
-    scopes={},
 )
 
 # Missing:
