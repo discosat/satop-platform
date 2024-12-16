@@ -1,0 +1,12 @@
+name: DummyDepender
+requirements: []
+dependencies: 
+  - Dummy
+
+targets:
+  startup:
+    after:
+      - Dummy.startup
+  shutdown:
+    before:
+      - Dummy.shutdown

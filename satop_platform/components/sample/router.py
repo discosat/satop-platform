@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from .sample import test
-from ..restapi import include_route, mount_plugin_router
+from ..restapi import APIApplication
 
 def create_router():
     router = APIRouter(
@@ -18,16 +18,5 @@ def create_router():
     return router
 
 
-def init():
-    include_route(create_router())
-
-    r2 = APIRouter()
-
-    @r2.get('/hw', name='Hell Function')
-    def hell():
-        '''
-        Description of hello function
-        '''
-        return {'message': test()}
-
-    mount_plugin_router('sample', r2)
+def init(api_app: APIApplication):
+    api_app.include_route(create_router())

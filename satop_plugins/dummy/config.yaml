@@ -1,0 +1,10 @@
+name: Dummy
+requirements: []
+dependencies: []
+capabilities: 
+  - http.add_routes
+
+targets:
+  startup:
+  shutdown:
+  
