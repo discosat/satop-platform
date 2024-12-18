@@ -3,6 +3,7 @@ from typing import Dict, Iterable
 import logging
 from fastapi import APIRouter
 import yaml
+from satop_platform.components.authorization.auth import PlatformAuthorization
 from satop_platform.components.syslog.syslog import Syslog
 _functions = dict()
 
@@ -13,7 +14,7 @@ class Plugin:
     api_router: APIRouter = None
     sys_log: Syslog = None
 
-    def __init__(self, plugin_dir: str):
+    def __init__(self, plugin_dir: str, platform_auth: PlatformAuthorization = None): # TODO: this might be too exposed!
         """Initializes the plugin with its configuration.
 
         Args:
@@ -24,6 +25,7 @@ class Plugin:
 
         self.config = config
         self.name = config['name']
+        self.platform_auth = platform_auth
 
         self.logger = logging.getLogger(__name__ + '.' + self.name)
 

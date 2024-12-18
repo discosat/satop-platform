@@ -133,6 +133,7 @@ def _load_plugins(components: SatOPComponents):
     """
     api = components.api
     sysLog = components.syslog
+    platform_auth = components.auth  # TODO: this might be too exposed!
 
     failed_plugins = []
     for plugin_name in _load_order:
@@ -147,7 +148,7 @@ def _load_plugins(components: SatOPComponents):
             module = importlib.import_module(f'{package_name}')
 
             # Create an instance of the plugin
-            plugin_instance = module.PluginClass()
+            plugin_instance = module.PluginClass(platform_auth=platform_auth)
 
             # Store the plugin instance before initialization
             plugin_info.instance = plugin_instance
