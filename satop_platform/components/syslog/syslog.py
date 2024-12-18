@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import hashlib
 import os
@@ -9,8 +10,13 @@ import sqlalchemy
 import sqlmodel
 from sqlalchemy.engine import Engine
 import re
+
 from ..restapi import APIApplication
 from . import models
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from core.component_initializer import SatOPComponents
 
 ARTIFACT_DIR = './artifact_data/'
 
@@ -18,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 class Syslog:
     db: Engine
-    def __init__(self, rest_app: APIApplication):
+    def __init__(self, components: SatOPComponents):
         logger.info('Setting up system logger')
         
         self.db = sqlmodel.create_engine('sqlite:///artifacts.db')
@@ -58,7 +64,7 @@ class Syslog:
                 return session.exec(statement).all()
 
 
-        rest_app.include_router(router)
+        components.api.include_router(router)
 
     def log_event(self, event: models.Event):
         # TODO: check that the subject and object exists (user, system, artifact)
