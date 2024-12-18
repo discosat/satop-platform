@@ -3,11 +3,13 @@ import logging
 import uvicorn
 
 from core import config
+from components.authorization.auth import PlatformAuthorization
 
 logger = logging.getLogger(__name__)
 
 class APIApplication:
     api_app: FastAPI
+    authorization: PlatformAuthorization
 
     _api_config: dict[str, any]
     _root_path: str
@@ -18,12 +20,8 @@ class APIApplication:
         self._root_path = self._api_config.get('root_path', '/api')
 
         self.api_app = FastAPI(*args, **kwargs)
+        self.authorization = PlatformAuthorization()
         self._router = APIRouter(prefix=self._root_path)
-
-        #     title="SatOP Platform API",
-        #     description="Software platform for operations and control of satellite systems.",
-        #     version='0.1.0-dev'
-        # )
 
     def mount_plugin_router(self, plugin_name:str, plugin_router: APIRouter, tags: list[str] = None, plugin_path: str=None):
         """Mount a router from a plugin

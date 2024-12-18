@@ -60,7 +60,7 @@ class Plugin:
         _functions[self.name][func_name] = func
 
 
-        self.logger.info(f"Registered function '{func_name}' from plugin '{self.name}'.")
+        self.logger.debug(f"Registered function '{func_name}' from plugin '{self.name}'.")
 
     def call_function(self, plugin_name: str, func_name: str, *args, **kwargs):
         """Retreive and call a registered function.
@@ -106,3 +106,7 @@ class Plugin:
         if not check:
             self.logger.error(f'Plugin "{self.name}" does not have the required capabilities: {reqs - caps}')
         return check
+
+class AuthenticationProviderPlugin(Plugin):
+    def create_auth_token(self, user_id: str):
+        self.logger.warning('create_auth_token has not been initialized.')

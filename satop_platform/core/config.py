@@ -1,7 +1,10 @@
 import yaml
 import os
+import logging
 
 from collections.abc import Mapping
+
+logger = logging.getLogger(__name__)
 
 def load_config(file:str = None):
     file_path = os.path.dirname(os.path.realpath(__file__))
@@ -15,6 +18,8 @@ def load_config(file:str = None):
 
 # Function to recursively merge dictionaries
 def merge_dicts(dict1, dict2):
+    logger.debug(f"Merging dicts: dict 1: {dict1}, dict2: {dict2}")
+
     merged = dict(dict1)  # Start with a copy of dict1
     for key, value in dict2.items():
         if key in merged:

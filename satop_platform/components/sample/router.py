@@ -8,7 +8,7 @@ def create_router():
         tags=['Sample component with API']
     )
 
-    @router.get('/hw')
+    @router.get('/hw', name='Hello Function')
     def hello():
         '''
         Description of hello function
