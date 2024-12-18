@@ -3,7 +3,7 @@ from typing import Dict, Iterable
 import logging
 from fastapi import APIRouter
 import yaml
-
+from satop_platform.components.syslog.syslog import Syslog
 _functions = dict()
 
 class Plugin:
@@ -11,6 +11,7 @@ class Plugin:
     config: dict
     logger: logging.Logger
     api_router: APIRouter = None
+    sys_log: Syslog = None
 
     def __init__(self, plugin_dir: str):
         """Initializes the plugin with its configuration.

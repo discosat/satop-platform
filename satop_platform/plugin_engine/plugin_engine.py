@@ -128,9 +128,12 @@ def _install_requirements():
             logger.error(f"Failed to install requirements: {e}")
             raise
 
-def _load_plugins(api: APIApplication):
+def _load_plugins(components: SatOPComponents):
     """Load plugins found during discovery and dependency resolution
     """
+    api = components.api
+    sysLog = components.syslog
+
     failed_plugins = []
     for plugin_name in _load_order:
         logger.debug(f'Trying to load {plugin_name}')
@@ -149,7 +152,11 @@ def _load_plugins(api: APIApplication):
             # Store the plugin instance before initialization
             plugin_info.instance = plugin_instance
             logger.debug(f"Loaded plugin: {plugin_name}")
+            
+            # Set the sys_log
+            plugin_info.instance.sys_log = sysLog
 
+            # Set the API router, if any
             caps = config.get('capabilities', [])
             print(caps)
             if plugin_instance.api_router:
@@ -326,6 +333,6 @@ def run_engine(components: SatOPComponents):
     _discover_plugins()
     _install_requirements()
     _resolve_dependencies()
-    _load_plugins(components.api)
+    _load_plugins(components)
     target_graphs = _graph_targets()
     execute_target(target_graphs, 'satop.startup')
