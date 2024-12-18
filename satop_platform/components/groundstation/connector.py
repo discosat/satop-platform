@@ -1,3 +1,4 @@
+from __future__ import annotations
 
 import asyncio
 import json
@@ -12,6 +13,10 @@ from fastapi.websockets import WebSocketState
 from pydantic import BaseModel
 
 from satop_platform.components.restapi.restapi import APIApplication
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from core.component_initializer import SatOPComponents
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +36,9 @@ class GroundstationsListItem:
 class GroundstationConnector:
     registered_groundstations: dict[uuid.UUID, GroundstationRegistrationItem]
 
-    def __init__(self, api: APIApplication):
+    def __init__(self, components: SatOPComponents):
         self.registered_groundstations = dict()
-        self.__setup_routes(api)
+        self.__setup_routes(components.api)
 
     async def __websocket_send(self, gs_id:uuid.UUID, data:dict):
         request_id = uuid.uuid4()

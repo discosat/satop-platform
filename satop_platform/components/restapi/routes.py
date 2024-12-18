@@ -12,7 +12,7 @@ def load_routes(api_app: APIApplication):
     async def docs_redirect():
         return RedirectResponse('/docs')
     
-    api_app.include_router(root_router)
+    api_app.api_app.include_router(root_router)
 
 
 

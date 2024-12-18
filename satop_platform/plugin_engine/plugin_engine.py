@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 import importlib.util
 import logging
@@ -17,6 +19,9 @@ from satop_platform.core.config import merge_dicts
 from components.restapi import APIApplication, exceptions
 from satop_platform.plugin_engine.plugin import AuthenticationProviderPlugin, Plugin
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from core.component_initializer import SatOPComponents
 
 # Define terminal logging module
 logger = logging.getLogger(__name__)
@@ -310,7 +315,7 @@ def execute_target(graph, target_root):
             fun()
         
 
-def run_engine(api: APIApplication):
+def run_engine(components: SatOPComponents):
     '''
     Discover all plugins in the "plugins" directory (expected to be located in root satop_platform directory)
 
@@ -321,6 +326,6 @@ def run_engine(api: APIApplication):
     _discover_plugins()
     _install_requirements()
     _resolve_dependencies()
-    _load_plugins(api)
+    _load_plugins(components.api)
     target_graphs = _graph_targets()
     execute_target(target_graphs, 'satop.startup')

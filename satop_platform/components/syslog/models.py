@@ -1,31 +1,33 @@
-from pydantic import BaseModel
-from typing import Literal, Union
+from pydantic import BaseModel, Field
+from sqlmodel import SQLModel, Field as sqlField
+from typing import Literal, Optional, Union
 from datetime import datetime
+from enum import Enum
+import time
 
-class Actor(BaseModel):
-    uri: str
+class EntityType(str, Enum):
+    user = 'user'
+    system = 'system'
+    artifact = 'artifact'
 
-class User(Actor):
-    name: str
-    user_id: str
-    role: str
-
-class System(Actor):
-    name: str
-    version: str
-    system_id: str
+class Entity(BaseModel):
+    type: EntityType
+    id: str
 
 class Predicate(BaseModel):
-    uri: str
-    timestamp: int
+    descriptor: str
 
-# TODO: Look inti RFC6920 Naming Things with Hashes (The ni uri specification)
 class Artifact(BaseModel):
-    name: str
-    url: str
-    media_type: str
+    sha1: str
 
-class Triplet(BaseModel):
-    subject: Union[User, System]
+class Event(BaseModel):
+    subject: Entity
     predicate: Predicate
-    object: Union[User, System, Artifact]
+    object: Union[Entity, str]
+    timestamp: int = Field(default_factory=time.time)
+
+
+class ArtifactStore(SQLModel, table=True):
+    sha1: str = sqlField(primary_key=True)
+    name: str
+    size: int

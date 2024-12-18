@@ -1,9 +1,14 @@
+from __future__ import annotations
 from fastapi import FastAPI, APIRouter
 import logging
 import uvicorn
 
 from core import config
 from components.authorization.auth import PlatformAuthorization
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from core.component_initializer import SatOPComponents
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +20,12 @@ class APIApplication:
     _root_path: str
     _router: APIRouter
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, components:SatOPComponents, *args, **kwargs):
         self._api_config = config.load_config('api.yml')
         self._root_path = self._api_config.get('root_path', '/api')
 
         self.api_app = FastAPI(*args, **kwargs)
-        self.authorization = PlatformAuthorization()
+        self.authorization = components.auth
         self._router = APIRouter(prefix=self._root_path)
 
     def mount_plugin_router(self, plugin_name:str, plugin_router: APIRouter, tags: list[str] = None, plugin_path: str=None):
