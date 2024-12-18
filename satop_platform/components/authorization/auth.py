@@ -19,6 +19,8 @@ from pydantic import BaseModel
 from sqlmodel import Session
 import logging
 
+logger = logging.getLogger(__name__)
+
 #from passlib.context import CryptContext
 
 SECRET_KEY = "INSERT_SECRET_KEY_HERE"
@@ -173,8 +175,9 @@ class PlatformAuthorization:
         with sqlmodel.Session(self.engine) as session:
             session.add(new_entity)
             session.commit()
-        
-        return new_entity
+            session.refresh(new_entity)
+
+            return new_entity
 
     def get_entity_details(self, _uuid: str):
         with sqlmodel.Session(self.engine) as session:
@@ -196,8 +199,9 @@ class PlatformAuthorization:
         with sqlmodel.Session(self.engine) as session:
             session.add(aidp)
             session.commit()
+            session.refresh(aidp)
         
-        return aidp
+            return aidp
 
     def get_identity_providers(self):
         # return self.providers

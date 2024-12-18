@@ -79,11 +79,11 @@ class Syslog:
 
         file_model = models.ArtifactStore(sha1 = sha1, name = filename, size = size)
         logger.debug(f'Received new artefact {file_model.model_dump()}')
-        model_copy = file_model.model_copy()
 
         with sqlmodel.Session(self.db) as session:
             session.add(file_model)
             session.commit()
+            session.refresh(file_model)
 
         if not os.path.exists(ARTIFACT_DIR):
             os.mkdir(ARTIFACT_DIR)
@@ -93,7 +93,7 @@ class Syslog:
             shutil.copyfileobj(file, out_file)
             out_file.close()
         
-        return model_copy
+        return file_model
 
     def get_artifact(self, hash):
         with sqlmodel.Session(self.db) as session:
