@@ -31,9 +31,9 @@ class PasswordUser(BaseModel):
 logger = logging.getLogger('plugin.password_authentication_provider')
 
 class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         plugin_dir = os.path.dirname(os.path.realpath(__file__))
-        super().__init__(plugin_dir)
+        super().__init__(plugin_dir, *args, **kwargs)
 
         self.sql_engine = sqlmodel.create_engine('sqlite:///users.db')
         # sqlmodel.SQLModel.metadata.create_all(self.sql_engine)

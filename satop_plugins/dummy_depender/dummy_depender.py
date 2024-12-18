@@ -6,9 +6,9 @@ from satop_platform.plugin_engine.plugin import Plugin
 logger = logging.getLogger(__name__)
 
 class DummyDepender(Plugin):
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         plugin_dir = os.path.dirname(os.path.realpath(__file__))
-        super().__init__(plugin_dir)
+        super().__init__(plugin_dir, *args, **kwargs)
 
         self.plugin_engine = None
 

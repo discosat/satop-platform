@@ -6,9 +6,9 @@ from fastapi import APIRouter
 logger = logging.getLogger('plugin.dummy')
 
 class Dummy(Plugin):
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         plugin_dir = os.path.dirname(os.path.realpath(__file__))
-        super().__init__(plugin_dir)
+        super().__init__(plugin_dir, *args, **kwargs)
 
         if not self.check_required_capabilities(['http.add_routes']):
             raise RuntimeError
