@@ -21,6 +21,14 @@ class InsufficientPermissions(HTTPException):
             headers=headers
         )
 
+class InvalidUser(HTTPException):
+    def __init__(self, detail = "Invalid entity. The account does not exist or it has been removed.", headers = None):
+        super().__init__(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=detail,
+                headers=headers,
+        )
+
 class InvalidToken(HTTPException):
     def __init__(self, detail = "Token could not be validated.", headers = None):
         super().__init__(
