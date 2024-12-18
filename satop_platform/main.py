@@ -51,7 +51,7 @@ if __name__ == '__main__':
 
     # sample.init()
 
-    syslog.init(api_app)
+    syslog = syslog.Syslog(api_app)
     run_engine(api_app)
 
     logger.info('Running server')
