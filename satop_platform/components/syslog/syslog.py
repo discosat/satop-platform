@@ -42,7 +42,7 @@ class Syslog:
         @router.post('/artifacts', status_code=201)
         def upload_artifact(file: UploadFile):
             try:
-                return self.create_artifact(file.file, file.filename).model_dump_json()
+                return self.create_artifact(file.file, file.filename)
             except sqlalchemy.exc.IntegrityError: 
                 raise HTTPException(status_code=status.HTTP_200_OK, detail='Artifact already exists. Reupload not neccessary')
 
@@ -77,8 +77,9 @@ class Syslog:
 
         size = file.seek(0,2)
 
-        file_model = models.ArtifactStore(sha1=sha1, name=filename, size=size)
+        file_model = models.ArtifactStore(sha1 = sha1, name = filename, size = size)
         logger.debug(f'Received new artefact {file_model.model_dump()}')
+        model_copy = file_model.model_copy()
 
         with sqlmodel.Session(self.db) as session:
             session.add(file_model)
@@ -92,7 +93,7 @@ class Syslog:
             shutil.copyfileobj(file, out_file)
             out_file.close()
         
-        return file_model
+        return model_copy
 
     def get_artifact(self, hash):
         with sqlmodel.Session(self.db) as session:
