@@ -9,7 +9,6 @@ from fastapi.responses import Response
 
 from satop_platform.plugin_engine.plugin import AuthenticationProviderPlugin
 from satop_platform.components.restapi import exceptions
-from satop_platform.components.authorization.auth import auth_scope
 
 # from .password_authentication_provider import models
 from pydantic import BaseModel
