@@ -4,10 +4,10 @@ import logging
 import uvicorn
 
 from core import config
-from components.authorization.auth import PlatformAuthorization
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
+    from components.authorization.auth import PlatformAuthorization
     from core.component_initializer import SatOPComponents
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Annotated, Iterable
 import uuid
-from fastapi import Depends, HTTPException, APIRouter
+from fastapi import Depends, HTTPException, APIRouter, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 from sqlalchemy import Engine
@@ -81,24 +81,6 @@ def validate_token(token:str):
     except jwt.InvalidTokenError:
         raise exceptions.InvalidToken()
 
-def auth_scope(needed_scopes: Iterable[str] | str):
-    def f(credentials: Annotated[HTTPAuthorizationCredentials, Depends(auth_scheme)]):
-        token = credentials.credentials
-        print(token)
-
-        # Validate Token
-        payload = validate_token(token)
-
-        token_scopes = set(payload.get("scopes", [])) # TODO: fetch user/token scopes
-
-        if (isinstance(needed_scopes, str) and needed_scopes in token_scopes) \
-            or (set(needed_scopes).issubset(token_scopes)):
-            return True
-        
-        raise exceptions.InsufficientPermissions()
-
-    return f
-
 async def get_user(token: Annotated[str, Depends(auth_scheme)]):
     decoded = decode_token(token)
 
@@ -148,7 +130,23 @@ class PlatformAuthorization:
         return create_access_token(data, expires_delta=expires_delta)
 
     def require_scope(self, needed_scopes: Iterable[str] | str):
-        return lambda: True
+        def f(credentials: Annotated[HTTPAuthorizationCredentials, Depends(auth_scheme)], request: Request):
+            token = credentials.credentials
+            print(token)
+
+            # Validate Token
+            payload = validate_token(token)
+            request.state.userid = payload.get('sub')
+
+            token_scopes = set(payload.get("scopes", [])) # TODO: fetch user/token scopes
+
+            if (isinstance(needed_scopes, str) and needed_scopes in token_scopes) \
+                or (set(needed_scopes).issubset(token_scopes)):
+                return True
+            
+            raise exceptions.InsufficientPermissions()
+
+        return f
 
     def get_all_entities(self):
         statement = sqlmodel.select(models.Entity)
@@ -193,6 +191,7 @@ class PlatformAuthorization:
         return aidp
 
     def get_identity_providers(self):
+        # return self.providers
         with sqlmodel.Session(self.engine) as session:
             statement = sqlmodel.select(models.AuthenticationIdentifiers)
             providers = session.exec(statement).all()

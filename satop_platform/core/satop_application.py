@@ -42,7 +42,7 @@ class SatOPApplication:
                 }
         )
         self.logger.info(f'Initialized platform application {application_title} v{version}')
-        routes.load_routes(self.components.api)
+        routes.load_routes(self.components)
     
     def run(self):
         run_engine(self.components)
