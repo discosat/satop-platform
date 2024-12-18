@@ -1,11 +1,18 @@
-from ..authorization.auth import auth_scope
-from fastapi import APIRouter, Depends
+from __future__ import annotations
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 
 from .restapi import APIApplication
 from ..authorization import models
 
-def load_routes(api_app: APIApplication):
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from core.component_initializer import SatOPComponents
+
+def load_routes(components: SatOPComponents):
+    api_app = components.api
+    auth = components.auth
+
 
     root_router = APIRouter(include_in_schema=False)
     @root_router.get('/')
@@ -24,17 +31,17 @@ def load_routes(api_app: APIApplication):
     
     api_app.include_router(router)
 
-    well_known_router = APIRouter(prefix='/.well-known', tags=['.well-known'])
+    # well_known_router = APIRouter(prefix='/.well-known', tags=['.well-known'])
 
-    @well_known_router.get('/ni/')
-    async def well_known_ni_base():
-        return RedirectResponse(f'/api/log/artifacts/ni/')
+    # @well_known_router.get('/ni/')
+    # async def well_known_ni_base():
+    #     return RedirectResponse(f'/api/log/artifacts/ni/')
 
-    @well_known_router.get('/ni/{ni}')
-    async def well_known_ni_redirect(ni):
-        return RedirectResponse(f'/api/log/artifacts/ni/{ni}')
+    # @well_known_router.get('/ni/{ni}')
+    # async def well_known_ni_redirect(ni):
+    #     return RedirectResponse(f'/api/log/artifacts/ni/{ni}')
     
-    api_app.api_app.include_router(well_known_router)
+    # api_app.api_app.include_router(well_known_router)
     auth_router = APIRouter(prefix='/auth', tags=["Authorization"])
 
     @auth_router.get('/entities')
@@ -60,5 +67,9 @@ def load_routes(api_app: APIApplication):
     @auth_router.get('/providers/{name}')
     async def get_idp_details(name: str):
         return api_app.authorization.get_idp_details(name)
+
+    @auth_router.get('/test', dependencies=[Depends(auth.require_scope([]))])
+    async def test_auth(request: Request):
+        return request.state
 
     api_app.include_router(auth_router)
