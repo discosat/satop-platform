@@ -77,7 +77,7 @@ def validate_token(token:str):
             raise exceptions.InvalidToken()
         return payload
     except jwt.ExpiredSignatureError:
-        raise exceptions.TokenExpired()
+        raise exceptions.ExpiredToken()
     except jwt.InvalidTokenError:
         raise exceptions.InvalidToken()
 
@@ -128,21 +128,30 @@ class PlatformAuthorization:
             'typ': typ
         }
         return create_access_token(data, expires_delta=expires_delta)
+    
+    def require_login(self, credentials: Annotated[HTTPAuthorizationCredentials, Depends(auth_scheme)], request: Request):
+        token = credentials.credentials
+        # Validate Token
+        payload = validate_token(token)
+        _uuid = payload.get('sub')
+        if not _uuid:
+            raise exceptions.InvalidToken
+        request.state.userid = _uuid
+
+        return payload
 
     def require_scope(self, needed_scopes: Iterable[str] | str):
-        def f(credentials: Annotated[HTTPAuthorizationCredentials, Depends(auth_scheme)], request: Request):
-            token = credentials.credentials
-            print(token)
+        def f(token_payload: Annotated[dict, Depends(self.require_login)], request: Request):
+            with sqlmodel.Session(self.engine) as session:
+                statement = sqlmodel.select(models.Entity).where(models.Entity.id == uuid.UUID(request.state.userid))
+                entity = session.exec(statement).first()
+                if not entity:
+                    raise exceptions.InvalidUser
+                validated_scopes = entity.scopes.split(',')
 
-            # Validate Token
-            payload = validate_token(token)
-            request.state.userid = payload.get('sub')
-
-            token_scopes = set(payload.get("scopes", [])) # TODO: fetch user/token scopes
-
-            if (isinstance(needed_scopes, str) and needed_scopes in token_scopes) \
-                or (set(needed_scopes).issubset(token_scopes)):
-                return True
+                if (isinstance(needed_scopes, str) and needed_scopes in validated_scopes) \
+                    or (set(needed_scopes).issubset(validated_scopes)):
+                    return True
             
             raise exceptions.InsufficientPermissions()
 

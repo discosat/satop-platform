@@ -43,8 +43,8 @@ class Syslog:
         def upload_artifact(file: UploadFile):
             try:
                 return self.create_artifact(file.file, file.filename)
-            except sqlalchemy.exc.IntegrityError: 
-                raise HTTPException(status_code=status.HTTP_200_OK, detail='Artifact already exists. Reupload not neccessary')
+            except sqlalchemy.exc.IntegrityError as e: 
+                raise HTTPException(status_code=status.HTTP_200_OK, detail=f'Artifact already exists. Reupload not neccessary. {e.params[0]}')
 
         @router.get('/artifacts/{hash}')
         def get_artifact(hash: str):

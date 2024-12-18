@@ -68,7 +68,7 @@ def load_routes(components: SatOPComponents):
     async def get_idp_details(name: str):
         return api_app.authorization.get_idp_details(name)
 
-    @auth_router.get('/test', dependencies=[Depends(auth.require_scope([]))])
+    @auth_router.get('/test', dependencies=[Depends(auth.require_scope(['test']))])
     async def test_auth(request: Request):
         return request.state
 
