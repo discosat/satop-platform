@@ -3,15 +3,14 @@ import logging
 import hashlib
 import os
 import shutil
-from typing import Annotated, BinaryIO, Optional
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, Request, status
+from typing import IO
+from fastapi import APIRouter, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 import sqlalchemy
 import sqlmodel
 from sqlalchemy.engine import Engine
 import re
 
-from ..restapi import APIApplication
 from . import models
 
 from typing import TYPE_CHECKING
@@ -41,7 +40,7 @@ class Syslog:
             return 'OK'
 
         @router.post('/artifacts', status_code=201)
-        def upload_artifact(file: Optional[UploadFile]):
+        def upload_artifact(file: UploadFile):
             try:
                 return self.create_artifact(file.file, file.filename)
             except sqlalchemy.exc.IntegrityError: 
@@ -73,10 +72,12 @@ class Syslog:
     def get_file_path(self, hash):
         return os.path.join(ARTIFACT_DIR, re.sub(r'[^0-9a-z]', '_', hash.lower()))
 
-    def create_artifact(self, file:BinaryIO, filename:str):
+    def create_artifact(self, file:IO[bytes], filename:str):
         sha1 = hashlib.sha1(file.read()).hexdigest()
 
-        file_model = models.ArtifactStore(sha1=sha1, name=filename, size=len(file))
+        size = file.seek(0,2)
+
+        file_model = models.ArtifactStore(sha1=sha1, name=filename, size=size)
         logger.debug(f'Received new artefact {file_model.model_dump()}')
         model_dump = file_model.model_dump_json()
 
@@ -106,4 +107,3 @@ class Syslog:
             data = f.read()
         
         return file_model, data
-
