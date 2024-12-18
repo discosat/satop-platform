@@ -1,0 +1,10 @@
+name: Compiler
+requirements: [networkx]
+dependencies: []
+capabilities: 
+  - http.add_routes
+
+targets:
+  startup:
+  shutdown:
+  
