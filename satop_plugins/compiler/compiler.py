@@ -21,6 +21,7 @@ class Compiler(Plugin):
         # Send in JSON and return compiled code
         @self.api_router.post('/compile')
         async def __compile(flight_plan: dict):
+            logger.info("Received flight plan: \n") # TODO: Change to use sysLog 
 
             # Parse the flight plan
             p = parser.parse(flight_plan)
