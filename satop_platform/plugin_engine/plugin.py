@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from pathlib import Path
 from typing import Dict, Iterable
 import logging
 from fastapi import APIRouter
@@ -10,11 +11,12 @@ _functions = dict()
 class Plugin:
     name: str
     config: dict
+    data_dir: Path
     logger: logging.Logger
     api_router: APIRouter = None
     sys_log: Syslog = None
 
-    def __init__(self, plugin_dir: str, platform_auth: PlatformAuthorization = None): # TODO: this might be too exposed!
+    def __init__(self, plugin_dir: str, data_dir: Path = None, platform_auth: PlatformAuthorization = None): # TODO: this might be too exposed!
         """Initializes the plugin with its configuration.
 
         Args:
@@ -22,6 +24,7 @@ class Plugin:
         """
         with open(plugin_dir + '/config.yaml', 'r') as f:
             config = yaml.safe_load(f)
+        self.data_dir = data_dir
 
         self.config = config
         self.name = config['name']

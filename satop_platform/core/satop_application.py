@@ -5,6 +5,7 @@ import subprocess
 
 from satop_platform.components.restapi import routes
 from satop_platform.plugin_engine.plugin_engine import run_engine
+from satop_platform.core import config
 
 from .component_initializer import SatOPComponents
 
@@ -28,6 +29,11 @@ class SatOPApplication:
         else:
             console_log_handler.setLevel(logging.WARNING)
         self.logger.addHandler(console_log_handler)
+
+        data_dir = config.get_root_data_folder()
+        if not data_dir.exists():
+            logging.info(f'Creating data directory {data_dir}')
+            data_dir.mkdir(parents=True)
         
         git_hash = self.get_git_head()
         version_suffix = '-' + git_hash if git_hash else ''

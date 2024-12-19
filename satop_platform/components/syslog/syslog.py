@@ -10,14 +10,15 @@ import sqlalchemy
 import sqlmodel
 from sqlalchemy.engine import Engine
 import re
+from satop_platform.core import config
 
-from . import models
+from satop_platform.components.syslog import models
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from core.component_initializer import SatOPComponents
 
-ARTIFACT_DIR = './artifact_data/'
+ARTIFACT_DIR = config.get_root_data_folder() / 'artifact_data'
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +26,11 @@ class Syslog:
     db: Engine
     def __init__(self, components: SatOPComponents):
         logger.info('Setting up system logger')
+
+        engine_path = config.get_root_data_folder() / 'database/artifacts.db'
+        engine_path.parent.mkdir(exist_ok=True)
+        self.db = sqlmodel.create_engine('sqlite:///'+str(engine_path))
         
-        self.db = sqlmodel.create_engine('sqlite:///artifacts.db')
         sqlmodel.SQLModel.metadata.create_all(self.db, [models.ArtifactStore.__table__])
 
         router = APIRouter(

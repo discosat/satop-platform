@@ -9,6 +9,7 @@ from fastapi.responses import Response
 
 from satop_platform.plugin_engine.plugin import AuthenticationProviderPlugin
 from satop_platform.components.restapi import exceptions
+from satop_platform.core import config
 
 # from .password_authentication_provider import models
 from pydantic import BaseModel
@@ -34,8 +35,11 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
     def __init__(self, *args, **kwargs):
         plugin_dir = os.path.dirname(os.path.realpath(__file__))
         super().__init__(plugin_dir, *args, **kwargs)
-
-        self.sql_engine = sqlmodel.create_engine('sqlite:///users.db')
+        
+        engine_path = self.data_dir / 'users.db'
+        engine_path.parent.mkdir(exist_ok=True, parents=True)
+        self.sql_engine = sqlmodel.create_engine('sqlite:///'+str(engine_path))
+        
         # sqlmodel.SQLModel.metadata.create_all(self.sql_engine)
         # if not inspect(self.sql_engine).has_table(HashedCredentials.__tablename__):
         HashedCredentials.__table__.create(self.sql_engine, checkfirst=True)
