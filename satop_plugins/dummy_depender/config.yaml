@@ -10,3 +10,9 @@ targets:
   shutdown:
     before:
       - Dummy.shutdown
+  post_init:
+    after:
+      - DummyDepender.startup
+  run:
+    after:
+      - DummyDepender.post_init

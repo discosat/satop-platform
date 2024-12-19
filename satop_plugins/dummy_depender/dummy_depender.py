@@ -11,13 +11,10 @@ class DummyDepender(Plugin):
         super().__init__(plugin_dir, *args, **kwargs)
 
         self.plugin_engine = None
-
-    def pre_init(self):
-        pass
-
-    def init(self):
         super().register_function('run', self.run)
 
+    def startup(self):
+        super().startup()
         dummy_return_func = super().call_function('Dummy', 'return_hello')
         if dummy_return_func:
             logger.debug(f"called dummy and got: {dummy_return_func}")
