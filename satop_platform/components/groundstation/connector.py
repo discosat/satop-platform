@@ -16,7 +16,7 @@ from satop_platform.components.restapi.restapi import APIApplication
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from core.component_initializer import SatOPComponents
+    from satop_platform.core.component_initializer import SatOPComponents
 
 logger = logging.getLogger(__name__)
 

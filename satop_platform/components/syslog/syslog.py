@@ -16,7 +16,7 @@ from satop_platform.components.syslog import models
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from core.component_initializer import SatOPComponents
+    from satop_platform.core.component_initializer import SatOPComponents
 
 ARTIFACT_DIR = config.get_root_data_folder() / 'artifact_data'
 

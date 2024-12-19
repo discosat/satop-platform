@@ -3,12 +3,12 @@ from fastapi import FastAPI, APIRouter
 import logging
 import uvicorn
 
-from core import config
+from satop_platform.core import config
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from components.authorization.auth import PlatformAuthorization
-    from core.component_initializer import SatOPComponents
+    from satop_platform.components.authorization.auth import PlatformAuthorization
+    from satop_platform.core.component_initializer import SatOPComponents
 
 logger = logging.getLogger(__name__)
 
