@@ -6,8 +6,11 @@ def load_args():
     parser.add_argument('-v', '--verbose', action='count', default=0)
     return parser.parse_args()
 
-if __name__ == '__main__':
+def main():
     args = load_args()
 
     application = SatOPApplication(log_level=args.verbose)
     application.run()
+
+if __name__ == '__main__':
+    main()

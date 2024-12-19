@@ -7,7 +7,7 @@ from satop_platform.components.authorization import models
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from core.component_initializer import SatOPComponents
+    from satop_platform.core.component_initializer import SatOPComponents
 
 def load_routes(components: SatOPComponents):
     api_app = components.api

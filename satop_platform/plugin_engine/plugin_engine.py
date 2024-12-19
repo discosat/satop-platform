@@ -19,12 +19,12 @@ from fastapi import APIRouter
 
 import satop_platform.core.config
 from satop_platform.core.config import merge_dicts
-from components.restapi import APIApplication, exceptions
+from satop_platform.components.restapi import APIApplication, exceptions
 from satop_platform.plugin_engine.plugin import AuthenticationProviderPlugin, Plugin
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from core.component_initializer import SatOPComponents
+    from satop_platform.core.component_initializer import SatOPComponents
 
 # Define terminal logging module
 logger = logging.getLogger(__name__)
@@ -168,7 +168,7 @@ def _load_plugins(components: SatOPComponents):
 
             # Set the API router, if any
             caps = config.get('capabilities', [])
-            print(caps)
+            # print(caps)
             if plugin_instance.api_router:
                 if 'http.add_routes' in caps:
                     _mount_plugin_router(plugin_instance, api)
