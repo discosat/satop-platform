@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import importlib.util
+from itertools import chain
 import logging
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
@@ -15,6 +17,7 @@ import yaml
 import networkx as nx
 from fastapi import APIRouter
 
+import satop_platform.core.config
 from satop_platform.core.config import merge_dicts
 from components.restapi import APIApplication, exceptions
 from satop_platform.plugin_engine.plugin import AuthenticationProviderPlugin, Plugin
@@ -54,12 +57,17 @@ def _discover_plugins():
         - python main-plugin
     '''
     file_path = os.path.dirname(os.path.realpath(__file__))
-    plugins_path = os.path.join(file_path, '../..', 'satop_plugins')
+    default_plugins = Path(os.path.join(file_path, '../..', 'satop_plugins'))
+    user_plugins = satop_platform.core.config.get_root_data_folder()/'plugins'
+    
+    sys.path.append(default_plugins.as_posix())
+    sys.path.append(user_plugins.as_posix())
 
-    sys.path.append(plugins_path)
+    plugin_paths:list[Path] = []
+    for plugin_path in chain(default_plugins.glob('*/'), user_plugins.glob('*/')):
+        plugin_paths.append(plugin_path.absolute())
 
-    for plugin_package in os.listdir(plugins_path):
-        plugin_path = os.path.join(plugins_path, plugin_package)
+    for plugin_path in plugin_paths:
         if os.path.isdir(plugin_path):
             config_path = os.path.join(plugin_path, 'config.yaml')
             if os.path.exists(config_path):
@@ -70,8 +78,8 @@ def _discover_plugins():
 
                 _plugins[plugin_name] = PluginDictItem(
                     config,
-                    plugin_path,
-                    plugin_package
+                    plugin_path.as_posix(),
+                    plugin_path.name
                 )
     logger.info(f"Discovered plugins: {list(_plugins.keys())}")
 
@@ -148,7 +156,8 @@ def _load_plugins(components: SatOPComponents):
             module = importlib.import_module(f'{package_name}')
 
             # Create an instance of the plugin
-            plugin_instance = module.PluginClass(platform_auth=platform_auth)
+            plugin_data_dir = satop_platform.core.config.get_root_data_folder() / 'plugin_data' / plugin_name
+            plugin_instance = module.PluginClass(data_dir=plugin_data_dir, platform_auth=platform_auth)
 
             # Store the plugin instance before initialization
             plugin_info.instance = plugin_instance

@@ -19,6 +19,8 @@ from pydantic import BaseModel
 from sqlmodel import Session
 import logging
 
+from satop_platform.core import config
+
 logger = logging.getLogger(__name__)
 
 #from passlib.context import CryptContext
@@ -104,7 +106,10 @@ class PlatformAuthorization:
     def __init__(self):
         self.providers = dict()
 
-        self.engine = sqlmodel.create_engine('sqlite:///authorization.db')
+        engine_path = config.get_root_data_folder() / 'database/authorization.db'
+        engine_path.parent.mkdir(exist_ok=True)
+        engine_url = 'sqlite:///'+str(engine_path)
+        self.engine = sqlmodel.create_engine(engine_url)
         SQLModel.metadata.create_all(self.engine, [models.Entity.__table__, models.AuthenticationIdentifiers.__table__])
 
     def register_provider(self, provider_key: str, identity_hint: str|None = None):

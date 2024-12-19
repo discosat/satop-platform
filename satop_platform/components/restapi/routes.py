@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 
 from .restapi import APIApplication
-from ..authorization import models
+from satop_platform.components.authorization import models
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:

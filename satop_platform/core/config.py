@@ -1,16 +1,17 @@
-import yaml
-import os
 import logging
+import pathlib
+import sys
+import yaml
 
 from collections.abc import Mapping
 
 logger = logging.getLogger(__name__)
 
 def load_config(file:str = None):
-    file_path = os.path.dirname(os.path.realpath(__file__))
-    config_path = os.path.join(file_path, '..', 'config', file)
+    config_path = get_root_data_folder()/'config'/file
+    logger.info(f'Loading config from {config_path}')
 
-    if not os.path.exists(config_path):
+    if not config_path.exists():
         return dict()
 
     with open(config_path) as f:
@@ -37,3 +38,13 @@ def merge_dicts(dict1, dict2):
         else:
             merged[key] = value
     return merged
+
+def get_root_data_folder():
+    home = pathlib.Path.home()
+
+    if sys.platform == "win32":
+        return home / "AppData/Roaming/SatOP"
+    elif sys.platform == "linux":
+        return home / ".local/share/SatOP"
+    elif sys.platform == "darwin":
+        return home / "Library/Application Support/SatOP"
