@@ -66,8 +66,29 @@ class Syslog:
         components.api.include_router(router)
 
     def log_event(self, event: models.Event):
-        # TODO: check that the subject and object exists (user, system, artifact)
-        logger.info(f'Logged event: {event.model_dump_json()}')
+        # TODO: check that the subjects and objects exists (user, system, artifact)
+        ev = event.descriptor
+        ts = event.timestamp
+        rs = event.relationships
+        action = models.Action(descriptor=ev)
+
+        triples: list[models.Triple] = list()
+
+        triples.append(models.Triple(subject=action, predicate=models.Predicate(descriptor='loggedAt'), object=ts))
+
+        for r in rs:
+            match r:
+                case models.EventSubjectRelationship():
+                    triples.append(models.Triple(subject=r.subject, predicate=r.predicate, object=action))
+                case models.EventObjectRelationship():
+                    triples.append(models.Triple(subject=action, predicate=r.predicate, object=r.object))
+                case models.Triple():
+                    triples.append(r)
+                case _:
+                    logger.warning(f'Unkown relationship for event: {r}')
+
+        for t in triples:
+            logger.info(f'Logged Event relation: {t.model_dump_json()}')
     
     def get_file_path(self, hash):
         return os.path.join(ARTIFACT_DIR, re.sub(r'[^0-9a-z]', '_', hash.lower()))

@@ -3,7 +3,9 @@ from sqlmodel import SQLModel, Field as sqlField
 from typing import Literal, Optional, Union
 from datetime import datetime
 from enum import Enum
+from uuid import UUID, uuid4
 import time
+
 
 class EntityType(str, Enum):
     user = 'user'
@@ -20,12 +22,32 @@ class Predicate(BaseModel):
 class Artifact(BaseModel):
     sha1: str
 
-class Event(BaseModel):
-    subject: Entity
-    predicate: Predicate
-    object: Union[Entity, str]
-    timestamp: int = Field(default_factory=time.time)
+class Action(BaseModel):
+    id: str = Field(default_factory=(lambda:uuid4().hex))
+    descriptor: str
 
+Value = Union[str, int, float]
+Subject = Union[Entity, Artifact, Action]
+Object = Union[Entity, Artifact, Action, Value]
+
+class Triple(BaseModel):
+    subject: Subject
+    predicate: Predicate
+    object: Object
+
+class EventRelationshipBase(BaseModel):
+    predicate: Predicate
+
+class EventSubjectRelationship(EventRelationshipBase):
+    subject: Subject
+
+class EventObjectRelationship(EventRelationshipBase):
+    object: Object
+
+class Event(BaseModel):
+    descriptor: str
+    timestamp: int = Field(default_factory=time.time)
+    relationships: list[Union[EventSubjectRelationship, EventObjectRelationship, Triple]]
 
 class ArtifactStore(SQLModel, table=True):
     sha1: str = sqlField(primary_key=True)

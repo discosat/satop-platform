@@ -34,12 +34,6 @@ class Compiler(Plugin):
                 # Artifact already exists
                 artifact_in_id = e.params[0]
             
-            self.sys_log.log_event(models.Event(
-                subject = models.Entity(type='user', id="compilerTest"),                          # TODO: Change to actual user
-                predicate = models.Predicate(descriptor="Uploaded flight plan"),
-                object = models.Entity(type='artifact', id=artifact_in_id)
-            ))
-            
             ## --- Do the actual compilation here ---
             p = parser.parse(await request.json())
             if p is None:
@@ -55,11 +49,28 @@ class Compiler(Plugin):
             except sqlalchemy.exc.IntegrityError as e: 
                 # Artifact already exists
                 artifact_out_id = e.params[0]
-    
+
             self.sys_log.log_event(models.Event(
-                subject = models.Entity(type='artifact', id=artifact_in_id),
-                predicate = models.Predicate(descriptor="Compiled to"),
-                object = models.Entity(type='artifact', id=artifact_out_id)
+                descriptor='CSHCompileEvent',
+                relationships=[
+                    models.EventObjectRelationship(
+                        predicate=models.Predicate(descriptor='startedBy'),
+                        object=models.Entity(type=models.EntityType.user, id=request.state.userid)
+                        ),
+                    models.EventObjectRelationship(
+                        predicate=models.Predicate(descriptor='used'),
+                        object=models.Artifact(sha1=artifact_in_id)
+                        ),
+                    models.EventObjectRelationship(
+                        predicate=models.Predicate(descriptor='created'),
+                        object=models.Artifact(sha1=artifact_out_id)
+                        ),
+                    models.Triple(
+                        subject=models.Artifact(sha1=artifact_out_id),
+                        predicate=models.Predicate(descriptor='generatedFrom'),
+                        object=models.Artifact(sha1=artifact_in_id)
+                    )
+                ]
             ))
 
             logger.info(f"\nCompiled flight_plan: \n{flight_plan} \nto \n{compiled}")
