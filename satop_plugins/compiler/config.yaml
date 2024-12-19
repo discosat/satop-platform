@@ -1,5 +1,5 @@
 name: Compiler
-requirements: [networkx]
+requirements: [networkx, git+https://github.com/discosat/proc-comp.git]
 dependencies: []
 capabilities: 
   - http.add_routes

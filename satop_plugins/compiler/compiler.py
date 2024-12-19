@@ -6,8 +6,9 @@ import sqlalchemy
 
 from satop_platform.plugin_engine.plugin import Plugin
 from satop_platform.components.syslog import models
-from .parser import parser
-from .codegen.codegen import CodeGen
+from proc_comp.parser import parser
+from proc_comp.codegen.codegen import CodeGen
+
 
 logger = logging.getLogger('plugin.compilor')
 
