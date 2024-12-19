@@ -127,10 +127,15 @@ def _install_requirements():
     for plugin_info in _plugins.values():
         reqs = plugin_info.config.get('requirements', [])
         all_requirements.extend(reqs)
-    if all_requirements:
-        logger.info(f"Installing requirements: {all_requirements}")
-        try:
-            subprocess.check_call(['pip', 'install'] + all_requirements)
+    
+    for req in all_requirements:
+        try:    
+            logger.info(f"Installing requirements: {all_requirements}")
+            if req.startswith('git+'):
+                logger.warning(f"Git requirement '{req}' will be upgraded to latest version")
+                subprocess.check_call(['pip', 'install', '--upgrade', req])
+            else:
+                subprocess.check_call(['pip', 'install', req])
             logger.info("Successfully installed all requirements.")
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to install requirements: {e}")
