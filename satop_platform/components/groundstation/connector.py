@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import logging
 import uuid
 
 from dataclasses import dataclass, field
-from asyncio import Queue
+from asyncio import Event, Queue
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.websockets import WebSocketState
@@ -32,6 +33,17 @@ class GroundstationRegistrationItem:
 class GroundstationsListItem:
     id: uuid.UUID
     name: str
+
+@dataclass
+class ResponseError:
+    status: int
+    details: str
+
+@dataclass
+class ResponseQueueItem:
+    event: Event
+    data: dict | None = None
+    error: ResponseError | None = None
 
 class GroundstationConnector:
     registered_groundstations: dict[uuid.UUID, GroundstationRegistrationItem]
@@ -59,21 +71,19 @@ class GroundstationConnector:
         
         ev = asyncio.Event()
 
-        gs.waiting_responses[request_id] = {
-            'event': ev,
-            'data': None
-        }
+        gs.waiting_responses[request_id] = ResponseQueueItem(event=ev)
 
         logger.debug(f'Waiting for response to {request_id}')
 
         await ev.wait()
-        data = gs.waiting_responses[request_id].get('data')
+        data:dict = gs.waiting_responses[request_id].data
+        error:ResponseError = gs.waiting_responses[request_id].error
 
         # Remove waiting
         del gs.waiting_responses[request_id]
 
         # Return response
-        return data
+        return data, error
 
 
 
@@ -116,16 +126,18 @@ class GroundstationConnector:
 
                     if in_response_to:
                         logger.debug(f'Got response message to {in_response_to}: {message}')
-                        res = self.registered_groundstations[gs_id].waiting_responses.get(in_response_to)
+                        res:ResponseQueueItem = self.registered_groundstations[gs_id].waiting_responses.get(in_response_to)
                         if res is None:
                             logger.debug(f'Noone is waiting for response {in_response_to}')
                             logger.debug(f'Current waiting: {self.registered_groundstations[gs_id].waiting_responses}')
                             continue
                         logger.debug(str(res))
 
-                        data = message.get('data')
-                        res['data'] = data
-                        res.get('event').set()
+                        data = message.get('data', dict())
+                        error = message.get('error', None)
+                        res.data = data
+                        res.error = error
+                        res.event.set()
                         logger.debug(f'Response set to {res}')
                     else:
                         logger.debug(f'Got message: {message}')
@@ -171,7 +183,7 @@ class GroundstationConnector:
             return stations
 
         @router.post('/stations/{gs_uuid}/control')
-        async def control_groundstation(gs_uuid: uuid.UUID, req:Request):
+        async def control_groundstation(gs_uuid: uuid.UUID, data:dict, req:Request):
             gs = self.registered_groundstations.get(gs_uuid)
             if not gs:
                 raise HTTPException(status.HTTP_404_NOT_FOUND)
@@ -188,13 +200,18 @@ class GroundstationConnector:
 
                 req_id = await self.__websocket_send(gs_uuid, data)
                 logger.debug(f"Created request with ID: {req_id}")
-                response = await self.__websocket_receive_response(gs_uuid, req_id)
-                logger.debug(f"Received response: {response}")
+                response, error = await self.__websocket_receive_response(gs_uuid, req_id)
+                if error:
+                    logger.warning(f'Received error from ground station: {dataclasses.asdict(error)}')
+                else:
+                    logger.debug(f"Received response: {response}")
             except Exception as e:
                 response = e
             finally:
                 gs.busy = False
 
+            if error:
+                raise HTTPException(502, detail=error)
             return response
 
         api.include_router(router)
