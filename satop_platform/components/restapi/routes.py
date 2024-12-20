@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from .restapi import APIApplication
 from satop_platform.components.authorization import models
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 if TYPE_CHECKING:
     from satop_platform.core.component_initializer import SatOPComponents
 
@@ -70,6 +70,8 @@ def load_routes(components: SatOPComponents):
 
     @auth_router.get('/test', dependencies=[Depends(auth.require_scope(['test']))]) # use auth.require_login instead to allow any logged in entity
     async def test_auth(request: Request):
-        return request.state
+        return {
+            'request.state': request.state,
+        }
 
     api_app.include_router(auth_router)

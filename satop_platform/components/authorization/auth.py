@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Annotated, Iterable
 import uuid
+import os
 from fastapi import Depends, HTTPException, APIRouter, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
@@ -83,6 +84,17 @@ def validate_token(token:str):
     except jwt.ExpiredSignatureError:
         raise exceptions.ExpiredToken()
     except jwt.InvalidTokenError:
+        if os.environ['SATOP_ENABLE_TEST_AUTH']:
+            split = token.split(';')
+            name = split[0]
+            scopes = list() if len(split) == 1 else split[1].split(',')
+            payload = {
+                'sub': '00000000-7e57-4000-a000-000000000000',
+                'test_name': name,
+                'test_scopes': scopes
+            }
+            logger.warning(f'Validating test token {token}. Remove "SATOP_ENABLE_TEST_AUTH" from env to disable this. SHOULD NOT BE USED IN PRODUCTION!')
+            return payload
         raise exceptions.InvalidToken()
 
 async def get_user(token: Annotated[str, Depends(auth_scheme)]):
@@ -144,17 +156,23 @@ class PlatformAuthorization:
         if not _uuid:
             raise exceptions.InvalidToken
         request.state.userid = _uuid
+        request.state.token_payload = payload
 
         return payload
 
     def require_scope(self, needed_scopes: Iterable[str] | str):
         def f(token_payload: Annotated[dict, Depends(self.require_login)], request: Request):
             with sqlmodel.Session(self.engine) as session:
-                statement = sqlmodel.select(models.Entity).where(models.Entity.id == uuid.UUID(request.state.userid))
-                entity = session.exec(statement).first()
-                if not entity:
-                    raise exceptions.InvalidUser
-                validated_scopes = entity.scopes.split(',')
+                validated_scopes = token_payload.get('test_scopes')
+
+                if validated_scopes is None:
+                    statement = sqlmodel.select(models.Entity).where(models.Entity.id == uuid.UUID(request.state.userid))
+                    entity = session.exec(statement).first()
+                    
+                    if not entity:
+                        raise exceptions.InvalidUser
+                
+                    validated_scopes = entity.scopes.split(',')
 
                 if (isinstance(needed_scopes, str) and needed_scopes in validated_scopes) \
                     or (set(needed_scopes).issubset(validated_scopes)):

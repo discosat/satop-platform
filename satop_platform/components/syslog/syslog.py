@@ -41,7 +41,7 @@ class Syslog:
         @router.post('/events')
         async def new_log_event(event: models.Event):
             self.log_event(event)
-            return 'OK'
+            return event
 
         @router.post('/artifacts', status_code=201)
         def upload_artifact(file: UploadFile):

@@ -46,6 +46,7 @@ class EventObjectRelationship(EventRelationshipBase):
 
 class Event(BaseModel):
     descriptor: str
+    id: str = Field(default_factory=lambda:uuid4().hex)
     timestamp: int = Field(default_factory=time.time)
     relationships: list[Union[EventSubjectRelationship, EventObjectRelationship, Triple]]
 
