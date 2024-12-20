@@ -1,6 +1,6 @@
 import os
 import logging
-from satop_platform.plugin_engine.plugin import Plugin
+from satop_platform.plugin_engine.plugin import Plugin, register_function
 from fastapi import APIRouter
 
 logger = logging.getLogger('plugin.dummy')
@@ -13,8 +13,6 @@ class Dummy(Plugin):
         if not self.check_required_capabilities(['http.add_routes']):
             raise RuntimeError
 
-        super().register_function('run', self.run)
-        super().register_function('return_hello', self.return_hello)
 
         self.api_router = APIRouter()
         @self.api_router.get('/hello')
@@ -25,9 +23,11 @@ class Dummy(Plugin):
         super().startup()
         logger.info("Running Dummy statup protocol")
 
+    @register_function
     def run(self):
         logger.debug("Dummy plugin running")
     
+    @register_function
     def return_hello(self):
         return "Hello from Dummy plugin"
     

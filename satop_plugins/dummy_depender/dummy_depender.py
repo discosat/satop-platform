@@ -1,7 +1,7 @@
 import logging
 import os
 
-from satop_platform.plugin_engine.plugin import Plugin
+from satop_platform.plugin_engine.plugin import Plugin, register_function
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +11,6 @@ class DummyDepender(Plugin):
         super().__init__(plugin_dir, *args, **kwargs)
 
         self.plugin_engine = None
-        super().register_function('run', self.run)
 
     def startup(self):
         super().startup()
@@ -25,6 +24,7 @@ class DummyDepender(Plugin):
         super().call_function('DummyDepender', 'run')
         pass
 
+    @register_function
     def run(self):
         logger.debug("DummyDepender plugin running")
         pass

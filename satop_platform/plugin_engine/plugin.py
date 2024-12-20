@@ -8,6 +8,35 @@ from satop_platform.components.authorization.auth import PlatformAuthorization
 from satop_platform.components.syslog.syslog import Syslog
 _functions = dict()
 
+
+def register_function(func):
+    """
+    Register a callable function that can be accessed by other plugins.
+
+    Args:
+        plugin_name (str): Name of the plugin registering the function.
+        func_name (str): Name of the function to register.
+        func (Callable): The function object to register.
+
+    Raises:
+        ValueError: If the function is already registered by the same plugin.
+    """
+    def decorator(self, *args, **kwargs):
+        func_name = func.__name__
+
+        if self.name not in _functions:
+            _functions[self.name] = dict()
+
+        if func_name in _functions[self.name]:
+            raise ValueError(f"Function '{func_name}' is already registered by plugin '{self.name}'.")
+
+        _functions[self.name][func_name] = func
+
+
+        self.logger.debug(f"Registered function '{func_name}' from plugin '{self.name}'.")
+        return func(self, *args, **kwargs)
+    return decorator
+
 class Plugin:
     name: str
     config: dict
@@ -32,6 +61,11 @@ class Plugin:
 
         self.logger = logging.getLogger(__name__ + '.' + self.name)
 
+    def _register_funciton(self):
+        def decorator(func):
+            self.register_function(func.__name__, func)
+            return func
+
     def startup(self):
         """
         Runs on server Startup as plugins are loaded
@@ -45,29 +79,7 @@ class Plugin:
         """
         pass
 
-    def register_function(self, func_name: str, func: Callable):
-        """
-        Register a callable function that can be accessed by other plugins.
-
-        Args:
-            plugin_name (str): Name of the plugin registering the function.
-            func_name (str): Name of the function to register.
-            func (Callable): The function object to register.
-
-        Raises:
-            ValueError: If the function is already registered by the same plugin.
-        """
-        if self.name not in _functions:
-            _functions[self.name] = dict()
-
-        if func_name in _functions[self.name]:
-            raise ValueError(f"Function '{func_name}' is already registered by plugin '{self.name}'.")
-
-        _functions[self.name][func_name] = func
-
-
-        self.logger.debug(f"Registered function '{func_name}' from plugin '{self.name}'.")
-
+    
     def call_function(self, plugin_name: str, func_name: str, *args, **kwargs):
         """Retreive and call a registered function.
 
@@ -112,6 +124,7 @@ class Plugin:
         if not check:
             self.logger.error(f'Plugin "{self.name}" does not have the required capabilities: {reqs - caps}')
         return check
+
 
 class AuthenticationProviderPlugin(Plugin):
     def create_auth_token(self, user_id: str):
