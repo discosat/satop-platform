@@ -1,9 +1,0 @@
-name: Scheduling
-requirements: []
-dependencies: [Compiler]
-capabilities: [http.add_routes]
-
-targets:
-  startup:
-  shutdown:
-  
