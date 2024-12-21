@@ -86,9 +86,6 @@ class GroundstationConnector:
         # Return response
         return data, error
 
-
-
-
     def __setup_routes(self, api: APIApplication):
         router = APIRouter(prefix='/gs', tags=['Groundstation'])
 
@@ -105,17 +102,17 @@ class GroundstationConnector:
             # Get groundstation connection message
             data_raw = await websocket.receive_text()
             logger.info(f'RAW data > {data_raw}')
-            data = json.loads(data_raw)
-            assert isinstance(data,dict)
+            hello_data = json.loads(data_raw)
+            assert isinstance(hello_data,dict)
 
-            name = data.get('name')
-            msg_type = data.get('type')
+            name = hello_data.get('name')
+            msg_type = hello_data.get('type')
 
             assert (msg_type == "hello" 
                 and name is not None
             )
 
-            gs_id = data.get('id')
+            gs_id = hello_data.get('id')
             if gs_id:
                 gs_id = uuid.UUID(gs_id)
             else:
@@ -161,7 +158,7 @@ class GroundstationConnector:
                         case dict():
                             msg = {
                                 'request_id': str(req_id),
-                                'data': data
+                                'data': content
                             }
                             logger.debug(f'Transmitting to GS: {msg}')
                             await websocket.send_json(msg)
@@ -229,8 +226,7 @@ class GroundstationConnector:
             #     raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail='Groundstation is busy. Try again later')
             # gs.busy = True
 
-            # try:
-            #     data = await req.json()
+            try:
 
             #     logger.debug(f"Received control data: {data}")
 
