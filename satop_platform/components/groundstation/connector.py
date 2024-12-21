@@ -183,38 +183,39 @@ class GroundstationConnector:
             return stations
 
         @router.post('/stations/{gs_uuid}/control')
-        async def control_groundstation(gs_uuid: uuid.UUID, data:dict, req:Request):
-            gs = self.registered_groundstations.get(gs_uuid)
-            if not gs:
-                raise HTTPException(status.HTTP_404_NOT_FOUND)
-            
-            # TODO: Maybe add a delay to see if resource is freed after a bit before raising the error
-            if gs.busy:
-                raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail='Groundstation is busy. Try again later')
-            gs.busy = True
-
-            try:
-                data = await req.json()
-
-                logger.debug(f"Received control data: {data}")
-
-                req_id = await self.__websocket_send(gs_uuid, data)
-                logger.debug(f"Created request with ID: {req_id}")
-                response, error = await self.__websocket_receive_response(gs_uuid, req_id)
-                if error:
-                    logger.warning(f'Received error from ground station: {dataclasses.asdict(error)}')
-                else:
-                    logger.debug(f"Received response: {response}")
-            except Exception as e:
-                response = e
-            finally:
-                gs.busy = False
-
-            if error:
-                raise HTTPException(502, detail=error)
-            return response
+        async def control_groundstation(gs_uuid: uuid.UUID, data:dict):
+            return await self.send_control(gs_uuid, data)
 
         api.include_router(router)
+
+    async def send_control(self, gs_uuid: uuid.UUID, data: dict):
+        gs = self.registered_groundstations.get(gs_uuid)
+        if not gs:
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        
+        # TODO: Maybe add a delay to see if resource is freed after a bit before raising the error
+        if gs.busy:
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail='Groundstation is busy. Try again later')
+        gs.busy = True
+
+        try:
+            logger.debug(f"Received control data: {data}")
+
+            req_id = await self.__websocket_send(gs_uuid, data)
+            logger.debug(f"Created request with ID: {req_id}")
+            response, error = await self.__websocket_receive_response(gs_uuid, req_id)
+            if error:
+                logger.warning(f'Received error from ground station: {dataclasses.asdict(error)}')
+            else:
+                logger.debug(f"Received response: {response}")
+        except Exception as e:
+            response = e
+        finally:
+            gs.busy = False
+
+        if error:
+            raise HTTPException(502, detail=error)
+        return response
 
 """
 
