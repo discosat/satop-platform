@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter
 import yaml
 from satop_platform.components.authorization.auth import PlatformAuthorization
+from satop_platform.components.groundstation.connector import GroundstationConnector
 from satop_platform.components.syslog.syslog import Syslog
 _functions = dict()
 
@@ -28,7 +29,7 @@ class Plugin:
         return func
 
 
-    def __init__(self, plugin_dir: str, data_dir: Path = None, platform_auth: PlatformAuthorization = None): # TODO: this might be too exposed!
+    def __init__(self, plugin_dir: str, data_dir: Path = None, platform_auth: PlatformAuthorization = None, gs_connector: GroundstationConnector = None): # TODO: this might be too exposed!
         """Initializes the plugin with its configuration.
 
         Args:
@@ -43,6 +44,7 @@ class Plugin:
         self.config = config
         self.name = config['name']
         self.platform_auth = platform_auth
+        self.gs_connector = gs_connector
 
 
         self.logger = logging.getLogger(__name__ + '.' + self.name)
@@ -72,10 +74,10 @@ class Plugin:
                 self.logger.debug(f"Registered function '{func_name}' from plugin '{self.name}'.")
         
 
-    def _register_funciton(self):
-        def decorator(func):
-            self.register_function(func.__name__, func)
-            return func
+    # def _register_funciton(self):
+    #     def decorator(func):
+    #         self.register_function(func.__name__, func)
+    #         return func
 
     def startup(self):
         """
