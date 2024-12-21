@@ -226,7 +226,7 @@ class GroundstationConnector:
             #     raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail='Groundstation is busy. Try again later')
             # gs.busy = True
 
-            try:
+            # try:
 
             #     logger.debug(f"Received control data: {data}")
 
