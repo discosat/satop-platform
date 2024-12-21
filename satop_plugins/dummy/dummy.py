@@ -1,6 +1,6 @@
 import os
 import logging
-from satop_platform.plugin_engine.plugin import Plugin, register_function
+from satop_platform.plugin_engine.plugin import Plugin
 from fastapi import APIRouter
 
 logger = logging.getLogger('plugin.dummy')
@@ -23,11 +23,11 @@ class Dummy(Plugin):
         super().startup()
         logger.info("Running Dummy statup protocol")
 
-    @register_function
+    @Plugin.register_function
     def run(self):
         logger.debug("Dummy plugin running")
     
-    @register_function
+    @Plugin.register_function
     def return_hello(self):
         return "Hello from Dummy plugin"
     

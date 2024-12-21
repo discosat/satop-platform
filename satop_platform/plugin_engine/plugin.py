@@ -9,34 +9,6 @@ from satop_platform.components.syslog.syslog import Syslog
 _functions = dict()
 
 
-def register_function(func):
-    """
-    Register a callable function that can be accessed by other plugins.
-
-    Args:
-        plugin_name (str): Name of the plugin registering the function.
-        func_name (str): Name of the function to register.
-        func (Callable): The function object to register.
-
-    Raises:
-        ValueError: If the function is already registered by the same plugin.
-    """
-    def decorator(self, *args, **kwargs):
-        func_name = func.__name__
-
-        if self.name not in _functions:
-            _functions[self.name] = dict()
-
-        if func_name in _functions[self.name]:
-            raise ValueError(f"Function '{func_name}' is already registered by plugin '{self.name}'.")
-
-        _functions[self.name][func_name] = func
-
-
-        self.logger.debug(f"Registered function '{func_name}' from plugin '{self.name}'.")
-        return func(self, *args, **kwargs)
-    return decorator
-
 class Plugin:
     name: str
     config: dict
@@ -45,11 +17,24 @@ class Plugin:
     api_router: APIRouter = None
     sys_log: Syslog = None
 
+    @classmethod
+    def register_function(cls, func):
+        """
+        Decorator that marks a method for registration when a Plugin
+        subclass is instantiated.
+        """
+        # custom attribute to flag that this method should be registered.
+        func._register_as_plugin_function = True
+        return func
+
+
     def __init__(self, plugin_dir: str, data_dir: Path = None, platform_auth: PlatformAuthorization = None): # TODO: this might be too exposed!
         """Initializes the plugin with its configuration.
 
         Args:
             plugin_dir (str): Path to the plugin directory.
+            data_dir (Path, optional): Path to the data directory. Defaults to None.
+            platform_auth (PlatformAuthorization, optional): Authorization provider. Defaults to None.
         """
         with open(plugin_dir + '/config.yaml', 'r') as f:
             config = yaml.safe_load(f)
@@ -59,7 +44,33 @@ class Plugin:
         self.name = config['name']
         self.platform_auth = platform_auth
 
+
         self.logger = logging.getLogger(__name__ + '.' + self.name)
+        
+        # Discover all methods that have _register_as_plugin_function=True
+        # and register them in the global _functions dict
+        self._discover_and_register()
+
+    def _discover_and_register(self):
+        """
+        Inspects 'self' to find methods flagged by @Plugin.register_function
+        and registers them in the global _functions dict.
+        """
+        # Initialize a dict for this plugin if not present
+        if self.name not in _functions:
+            _functions[self.name] = {}
+
+        for attr_name in dir(self):
+            method = getattr(self, attr_name)
+            if callable(method) and getattr(method, '_register_as_plugin_function', False):
+                func_name = method.__name__
+                if func_name in _functions[self.name]:
+                    raise ValueError(f"Function '{func_name}' already registered by plugin '{self.name}'.")
+                
+                # Register the method in the global registry
+                _functions[self.name][func_name] = method
+                self.logger.debug(f"Registered function '{func_name}' from plugin '{self.name}'.")
+        
 
     def _register_funciton(self):
         def decorator(func):

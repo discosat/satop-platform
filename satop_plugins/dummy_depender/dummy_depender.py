@@ -1,7 +1,7 @@
 import logging
 import os
 
-from satop_platform.plugin_engine.plugin import Plugin, register_function
+from satop_platform.plugin_engine.plugin import Plugin
 
 logger = logging.getLogger(__name__)
 
@@ -14,17 +14,20 @@ class DummyDepender(Plugin):
 
     def startup(self):
         super().startup()
-        dummy_return_func = super().call_function('Dummy', 'return_hello')
-        if dummy_return_func:
-            logger.debug(f"called dummy and got: {dummy_return_func}")
-        else:
-            logger.warning("Dummy.return_hello not found")
+        try:
+            dummy_return_func = super().call_function('Dummy', 'return_hello')
+            if dummy_return_func:
+                logger.debug(f"called dummy and got: {dummy_return_func}")
+            else:
+                logger.warning("Dummy.return_hello not found")
+        except ValueError as e:
+            logger.error(f"Error calling Dummy.return_hello: {e}")
 
     def post_init(self):
         super().call_function('DummyDepender', 'run')
         pass
 
-    @register_function
+    @Plugin.register_function
     def run(self):
         logger.debug("DummyDepender plugin running")
         pass
