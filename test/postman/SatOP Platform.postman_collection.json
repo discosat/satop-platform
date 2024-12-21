@@ -1294,7 +1294,7 @@
 									"bearer": [
 										{
 											"key": "token",
-											"value": "{{bearerToken}}",
+											"value": "{{accessToken}}",
 											"type": "string"
 										}
 									]
@@ -1836,6 +1836,337 @@
 							]
 						},
 						{
+							"name": "scheduling",
+							"item": [
+								{
+									"name": "New Flihtplan Schedule",
+									"event": [
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													"pm.collectionVariables.set(\"latest_fp_uuid\", pm.response.json()[\"fp_id\"])"
+												],
+												"type": "text/javascript",
+												"packages": {}
+											}
+										}
+									],
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{bearerToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											},
+											{
+												"key": "Accept",
+												"value": "application/json"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\r\n    \"flight_plan\": \r\n    {\r\n        \"name\": \"commands\",\r\n        \"body\": [\r\n            {\r\n                \"name\": \"repeat-n\",\r\n                \"count\": 10,\r\n                \"body\": [\r\n                    {\r\n                        \"name\": \"gpio-write\",\r\n                        \"pin\": 16,\r\n                        \"value\": 1\r\n                    },\r\n                    {\r\n                        \"name\": \"wait-sec\",\r\n                        \"duration\": 1\r\n                    },\r\n                    {\r\n                        \"name\": \"gpio-write\",\r\n                        \"pin\": 16,\r\n                        \"value\": 0\r\n                    },\r\n                    {\r\n                        \"name\": \"wait-sec\",\r\n                        \"duration\": 1\r\n                    }\r\n                ]\r\n            }\r\n        ]\r\n    },\r\n    \"datetime\": \"2024-12-20T12:00:00Z\",\r\n    \"gs_id\": \"flapJack\"\r\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{baseUrl}}/api/plugins/scheduling/compile",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"plugins",
+												"scheduling",
+												"compile"
+											]
+										}
+									},
+									"response": [
+										{
+											"name": "Successful Response",
+											"originalRequest": {
+												"method": "POST",
+												"header": [
+													{
+														"key": "Authorization",
+														"value": "Bearer <token>",
+														"description": "Added as a part of security scheme: bearer"
+													},
+													{
+														"key": "Accept",
+														"value": "application/json"
+													}
+												],
+												"body": {
+													"mode": "raw",
+													"raw": "<object>",
+													"options": {
+														"raw": {
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "{{baseUrl}}/api/plugins/scheduling/compile",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"plugins",
+														"scheduling",
+														"compile"
+													]
+												}
+											},
+											"status": "Created",
+											"code": 201,
+											"_postman_previewlanguage": "json",
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												}
+											],
+											"cookie": [],
+											"body": "{}"
+										},
+										{
+											"name": "Validation Error",
+											"originalRequest": {
+												"method": "POST",
+												"header": [
+													{
+														"key": "Authorization",
+														"value": "Bearer <token>",
+														"description": "Added as a part of security scheme: bearer"
+													},
+													{
+														"key": "Accept",
+														"value": "application/json"
+													}
+												],
+												"body": {
+													"mode": "raw",
+													"raw": "<object>",
+													"options": {
+														"raw": {
+															"language": "json"
+														}
+													}
+												},
+												"url": {
+													"raw": "{{baseUrl}}/api/plugins/scheduling/compile",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"plugins",
+														"scheduling",
+														"compile"
+													]
+												}
+											},
+											"status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+											"code": 422,
+											"_postman_previewlanguage": "json",
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												}
+											],
+											"cookie": [],
+											"body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}"
+										}
+									]
+								},
+								{
+									"name": "Approve Flight Plan",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{bearerToken}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "POST",
+										"header": [
+											{
+												"key": "Accept",
+												"value": "application/json"
+											}
+										],
+										"url": {
+											"raw": "{{baseUrl}}/api/plugins/scheduling/approve/:uuid?fp_uuid={{latest_fp_uuid}}&approved=true",
+											"host": [
+												"{{baseUrl}}"
+											],
+											"path": [
+												"api",
+												"plugins",
+												"scheduling",
+												"approve",
+												":uuid"
+											],
+											"query": [
+												{
+													"key": "fp_uuid",
+													"value": "{{latest_fp_uuid}}",
+													"description": "(Required) "
+												},
+												{
+													"key": "approved",
+													"value": "true",
+													"description": "(Required) "
+												}
+											],
+											"variable": [
+												{
+													"key": "uuid",
+													"value": ""
+												}
+											]
+										}
+									},
+									"response": [
+										{
+											"name": "Successful Response",
+											"originalRequest": {
+												"method": "POST",
+												"header": [
+													{
+														"key": "Authorization",
+														"value": "Bearer <token>",
+														"description": "Added as a part of security scheme: bearer"
+													},
+													{
+														"key": "Accept",
+														"value": "application/json"
+													}
+												],
+												"url": {
+													"raw": "{{baseUrl}}/api/plugins/scheduling/approve/:uuid?fp_uuid=<string>&approved=<boolean>",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"plugins",
+														"scheduling",
+														"approve",
+														":uuid"
+													],
+													"query": [
+														{
+															"key": "fp_uuid",
+															"value": "<string>"
+														},
+														{
+															"key": "approved",
+															"value": "<boolean>"
+														}
+													],
+													"variable": [
+														{
+															"key": "uuid"
+														}
+													]
+												}
+											},
+											"status": "Created",
+											"code": 201,
+											"_postman_previewlanguage": "json",
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												}
+											],
+											"cookie": [],
+											"body": "{}"
+										},
+										{
+											"name": "Validation Error",
+											"originalRequest": {
+												"method": "POST",
+												"header": [
+													{
+														"key": "Authorization",
+														"value": "Bearer <token>",
+														"description": "Added as a part of security scheme: bearer"
+													},
+													{
+														"key": "Accept",
+														"value": "application/json"
+													}
+												],
+												"url": {
+													"raw": "{{baseUrl}}/api/plugins/scheduling/approve/:uuid?fp_uuid=<string>&approved=<boolean>",
+													"host": [
+														"{{baseUrl}}"
+													],
+													"path": [
+														"api",
+														"plugins",
+														"scheduling",
+														"approve",
+														":uuid"
+													],
+													"query": [
+														{
+															"key": "fp_uuid",
+															"value": "<string>"
+														},
+														{
+															"key": "approved",
+															"value": "<boolean>"
+														}
+													],
+													"variable": [
+														{
+															"key": "uuid"
+														}
+													]
+												}
+											},
+											"status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+											"code": 422,
+											"_postman_previewlanguage": "json",
+											"header": [
+												{
+													"key": "Content-Type",
+													"value": "application/json"
+												}
+											],
+											"cookie": [],
+											"body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}"
+										}
+									]
+								}
+							]
+						},
+						{
 							"name": "  Hello",
 							"request": {
 								"method": "GET",
@@ -2151,7 +2482,7 @@
 			"type": "string"
 		},
 		{
-			"key": "accessToken",
+			"key": "bearerToken",
 			"value": "None",
 			"type": "string"
 		},
@@ -2168,6 +2499,10 @@
 			"key": "myUuid",
 			"value": "None",
 			"type": "string"
+		},
+		{
+			"key": "latest_fp_uuid",
+			"value": "None"
 		}
 	]
 }
