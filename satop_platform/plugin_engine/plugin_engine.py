@@ -147,6 +147,7 @@ def _load_plugins(components: SatOPComponents):
     api = components.api
     sysLog = components.syslog
     platform_auth = components.auth  # TODO: this might be too exposed!
+    gs_connector = components.gs     # TODO: this too, might be too exposed!
 
     failed_plugins = []
     for plugin_name in _load_order:
@@ -162,7 +163,7 @@ def _load_plugins(components: SatOPComponents):
 
             # Create an instance of the plugin
             plugin_data_dir = satop_platform.core.config.get_root_data_folder() / 'plugin_data' / plugin_name
-            plugin_instance = module.PluginClass(data_dir=plugin_data_dir, platform_auth=platform_auth)
+            plugin_instance = module.PluginClass(data_dir=plugin_data_dir, platform_auth=platform_auth, gs_connector=gs_connector)
 
             # Store the plugin instance before initialization
             plugin_info.instance = plugin_instance
