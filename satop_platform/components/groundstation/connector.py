@@ -120,7 +120,7 @@ class GroundstationConnector:
 
             self.registered_groundstations[gs_id] = GroundstationRegistrationItem(name, websocket)
 
-            await websocket.send_json({'message': 'OK', 'id': gs_id.hex})
+            await websocket.send_json({'message': 'OK', 'id': str(gs_id)})
 
             logger.info(f"Connected to GS '{name}' with UUID {gs_id}")
             

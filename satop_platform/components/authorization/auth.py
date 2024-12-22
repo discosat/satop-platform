@@ -143,7 +143,7 @@ class PlatformAuthorization:
 
     def create_token(self, uuid: uuid.UUID, typ = 'access', expires_delta: timedelta | None = None):
         data = {
-            'sub': uuid.hex,
+            'sub': str(uuid),
             'typ': typ
         }
         return create_access_token(data, expires_delta=expires_delta)

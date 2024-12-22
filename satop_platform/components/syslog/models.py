@@ -10,7 +10,6 @@ import time
 class EntityType(str, Enum):
     user = 'user'
     system = 'system'
-    artifact = 'artifact'
 
 class Entity(BaseModel):
     type: EntityType
@@ -23,7 +22,7 @@ class Artifact(BaseModel):
     sha1: str
 
 class Action(BaseModel):
-    id: str = Field(default_factory=(lambda:uuid4().hex))
+    id: str = Field(default_factory=(lambda:str(uuid4())))
     descriptor: str
 
 Value = Union[str, int, float]
@@ -46,7 +45,7 @@ class EventObjectRelationship(EventRelationshipBase):
 
 class Event(BaseModel):
     descriptor: str
-    id: str = Field(default_factory=lambda:uuid4().hex)
+    id: str = Field(default_factory=lambda:str(uuid4()))
     timestamp: int = Field(default_factory=time.time)
     relationships: list[Union[EventSubjectRelationship, EventObjectRelationship, Triple]]
 
