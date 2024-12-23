@@ -48,7 +48,7 @@ pip install git+https://github.com/discosat/satop-platform.git
 
 ## Run
 ```sh
-python satop_platform/main.py [-vv]
+python -m satop_platform [-vv]
 ```
 
 
