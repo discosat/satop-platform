@@ -46,7 +46,7 @@ class EventObjectRelationship(EventRelationshipBase):
 class Event(BaseModel):
     descriptor: str
     id: str = Field(default_factory=lambda:str(uuid4()))
-    timestamp: int = Field(default_factory=time.time)
+    timestamp: float = Field(default_factory=time.time)
     relationships: list[Union[EventSubjectRelationship, EventObjectRelationship, Triple]]
 
 class ArtifactStore(SQLModel, table=True):

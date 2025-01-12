@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]  
-include = ["satop_platform"]
+include = ["satop_platform*"]
 
 [project]
 name = "satop_platform"
