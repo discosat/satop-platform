@@ -134,7 +134,7 @@ class GroundstationConnector:
                         logger.debug(f'Got response message to {in_response_to}: {message}')
                         res:ResponseQueueItem = self.registered_groundstations[gs_id].waiting_responses.get(in_response_to)
                         if res is None:
-                            logger.debug(f'Noone is waiting for response {in_response_to}')
+                            logger.debug(f'No one is waiting for response {in_response_to}')
                             logger.debug(f'Current waiting: {self.registered_groundstations[gs_id].waiting_responses}')
                             continue
                         logger.debug(str(res))
