@@ -179,6 +179,7 @@ def _load_plugins(components: SatOPComponents):
                 if 'http.add_routes' in caps:
                     _mount_plugin_router(plugin_instance, api)
                 else:
+                    logger.warning(f"{plugin_name} has created a route but does not have the required capabilities to mount it. Ensure it has 'http.add_routes' in the plugin's 'config.yaml'")
                     raise RuntimeWarning(f"{plugin_name} has created a route but does not have the required capabilities to mount it. Ensure it has 'http.add_routes' in the plugin's 'config.yaml'")
             if 'security.authentication_provider' in caps:
                 _register_authentication_plugins(plugin_instance, api)
@@ -257,6 +258,7 @@ def _graph_targets() -> dict[str, list[callable]]:
     # Go through all plugins to find targets and dependencies (directed edges)
     for name, targets in target_configs.items():
         if not name:
+            logger.error('Plugin config does not have a name. Cannot create targets')
             raise RuntimeError('Plugin config does not have a name. Cannot create targets')
         
         # Makes a root for startup and shutdown from which all startup
@@ -284,10 +286,12 @@ def _graph_targets() -> dict[str, list[callable]]:
             function = None
             function_name = details.get('function', None)
             if not function_name and target_name not in ['startup', 'shutdown']:
+                logger.warning(f'No function specified for target "{target_name}" in plugin "{name}"')
                 raise RuntimeError(f'No function specified for target "{target_name}" in plugin "{name}"')
             if function_name:
                 inst = _plugins.get(name).instance
                 if inst is None:
+                    logger.error(f'Plugin instance not initialized for plugin "{name}"')
                     raise RuntimeError('Plugin instance not initialized')
                 function = getattr(inst, function_name)
 
@@ -301,8 +305,10 @@ def _graph_targets() -> dict[str, list[callable]]:
     # Check all edges are valid (targets exist)
     for p, q in edges:
         if not G.has_node(p):
+            logger.error(f'Target graph is missing node "{p}" ({p} -> {q})')
             raise RuntimeWarning(f'Target graph is missing node "{p}" ({p} -> {q})')
         if not G.has_node(q):
+            logger.error(f'Target graph is missing node "{q}" ({p} -> {q})')
             raise RuntimeWarning(f'Target graph is missing node "{q}" ({p} -> {q})')
 
         G.add_edge(p, q)
@@ -313,6 +319,7 @@ def _graph_targets() -> dict[str, list[callable]]:
     # iterate through each and mark visited 
     try:
         c = nx.find_cycle(G, orientation="original")
+        logger.error(f"Found cycle in graph during target discovery: {c}")
         raise RuntimeError(f"Found cycle in graph during target discovery: {c}")
     except nx.NetworkXNoCycle:
         # No cycle found
