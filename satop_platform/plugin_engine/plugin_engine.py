@@ -283,6 +283,8 @@ def _graph_targets() -> dict[str, list[callable]]:
             target_id = f'{name}.{target_name}'
             function = None
             function_name = details.get('function', None)
+            if not function_name and target_name not in ['startup', 'shutdown']:
+                raise RuntimeError(f'No function specified for target "{target_name}" in plugin "{name}"')
             if function_name:
                 inst = _plugins.get(name).instance
                 if inst is None:
