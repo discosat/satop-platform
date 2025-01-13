@@ -18,10 +18,10 @@ class Entity(EntityBase, table=True):
 
 # Map entity IDs to identity provider provided identities. That way one user could be authenticated using either e.g. "email" or "au-azure"
 class ProviderIdentityBase(SQLModel):
-    provider: str
-    identity: str
+    provider: str = Field(primary_key=True)
+    identity: str = Field(primary_key=True)
 
 class AuthenticationIdentifiers(ProviderIdentityBase, table=True):
     __table_args__ = {'extend_existing': True}
-    entity_id: uuid.UUID = Field(default=None, foreign_key="entity.id", primary_key=True)
+    entity_id: uuid.UUID = Field(default=None, foreign_key="entity.id")
 
