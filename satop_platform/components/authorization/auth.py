@@ -35,6 +35,7 @@ REFRESH_TOKEN_EXPIRE_DAYS = 1
 auth_scheme = HTTPBearer(
     scheme_name='jwt_token',
     description='JWT Token',
+    auto_error=False
 )
 
 # Missing:
@@ -148,7 +149,9 @@ class PlatformAuthorization:
         }
         return create_access_token(data, expires_delta=expires_delta)
     
-    def require_login(self, credentials: Annotated[HTTPAuthorizationCredentials, Depends(auth_scheme)], request: Request):
+    def require_login(self, credentials: Annotated[HTTPAuthorizationCredentials|None, Depends(auth_scheme)], request: Request):
+        if credentials is None:
+            raise exceptions.MissingCredentials
         token = credentials.credentials
         # Validate Token
         payload = validate_token(token)
