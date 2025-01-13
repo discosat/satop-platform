@@ -11,8 +11,10 @@ targets:
     before:
       - Dummy.shutdown
   post_init:
+    function: post_init
     after:
       - DummyDepender.startup
   run:
+    function: run
     after:
       - DummyDepender.post_init
