@@ -227,11 +227,11 @@ class PlatformAuthorization:
             return aidp
 
     def get_identity_providers(self):
-        # return self.providers
-        with sqlmodel.Session(self.engine) as session:
-            statement = sqlmodel.select(models.AuthenticationIdentifiers)
-            providers = session.exec(statement).all()
-            return providers
+        return self.providers
+        # with sqlmodel.Session(self.engine) as session:
+        #     statement = sqlmodel.select(models.AuthenticationIdentifiers)
+        #     providers = session.exec(statement).all()
+        #     return providers
 
     def get_idp_details(self, provider_name: str):
         with sqlmodel.Session(self.engine) as session:
