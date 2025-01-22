@@ -9,13 +9,18 @@ logger = logging.getLogger(__name__)
 
 def load_config(file:str = None):
     config_path = get_root_data_folder()/'config'/file
-    logger.info(f'Loading config from {config_path}')
+    # logger.info(f'Loa config from {config_path}')
+    config = dict()
 
     if not config_path.exists():
-        return dict()
-
-    with open(config_path) as f:
-        return yaml.safe_load(f) or dict()
+        logger.warning(f'Config file not found at {config_path} -- Using default values')
+        # return dict()
+    else:
+        with open(config_path) as f:
+            logger.info(f'Loaded config from {config_path}')
+            config = yaml.safe_load(f) or dict()
+            logger.debug(f'Loaded config: {config}')
+    return config
 
 # Function to recursively merge dictionaries
 def merge_dicts(dict1, dict2):
