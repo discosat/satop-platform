@@ -12,6 +12,18 @@ class EntityBase(SQLModel):
     type: EntityType
     scopes: str | None = Field(default=None) # Comma-seperated list of scopes
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "name": "John Doe",
+                    "type": "person",
+                    "scopes": "admin,operator"
+                }
+            ]
+        }
+    }
+
 class Entity(EntityBase, table=True):
     __table_args__ = {'extend_existing': True}
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -20,6 +32,17 @@ class Entity(EntityBase, table=True):
 class ProviderIdentityBase(SQLModel):
     provider: str = Field(primary_key=True)
     identity: str = Field(primary_key=True)
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "provider": "email_password",
+                    "identity": "test@email.test"
+                }
+            ]
+        }
+    }
 
 class AuthenticationIdentifiers(ProviderIdentityBase, table=True):
     __table_args__ = {'extend_existing': True}
