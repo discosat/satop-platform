@@ -1,6 +1,11 @@
-# satop-platform
+# SatOP - a general interoperability platform for satellite command and control and other operations systems for small satellite missions
 
-TODO: Write description
+The SatOP platform is a framework written in Python with core components for logging, a ground station interface, an easily extendable API
+with [FastAPI](https://fastapi.tiangolo.com/), an authorisation framework, and a modular plugin interface. 
+
+The plugin interface enables easy integration with existing systems and creation of new tools to support the operation in a satellite mission. The ground station interface makes it possible to connect the platform with one or more ground stations, without restricting which commands and functionality the ground station can support.
+
+It has initially been developed as a research and development project at Aarhus University in fall of 2024 by [Aleksander Nicklas Nikolajsen](https://github.com/Nikolasjen) and [Tobias Frejo Rasmussen](https://github.com/tobiasfrejo) in collaboration with DISCO, with the intention of being used for the operations of DISCO-2.
 
 ## Requirements
 The platform requires Python 3.10 or later to run. Install from [python.org](https://www.python.org/downloads/) or if using Linux, your distribution's package repository.
