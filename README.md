@@ -1,6 +1,80 @@
 # satop-platform
 
-## Configure
+TODO: Write description
+
+## Requirements
+The platform requires Python 3.10 or later to run. Install from [python.org](https://www.python.org/downloads/) or if using Linux, your distribution's package repository.
+
+On Ubuntu, you should install the `python3-full` to ensure you have PIP and virtual environment support. (Optional) You can also install `python-is-python3` to be able to use `python` from the terminal instead of `python3`:
+
+```
+sudo apt install python3-full python-is-python3
+```
+
+## Run
+
+We suggest creating and activate a Python virtual environment. Navigate to a suitable location in your terminal and run:
+
+Windows
+```ps1
+python -m venv .venv
+.venv\Scripts\activate
+```
+
+Linux / macOS
+```sh
+python -m venv .venv
+source .venv/bin/activate
+```
+
+Now, install the satop-platform package directly from the git repository:
+
+```sh
+pip install git+https://github.com/discosat/satop-platform.git
+```
+
+## Run
+
+With the platform package installed, it can be run with:
+
+```sh
+python -m satop_platform [-vv]
+```
+
+Access the automatically generated API documentation from a browser:
+- [Swagger UI (http://localhost:7890/docs)](http://localhost:7890/docs)
+- [ReDoc (http://localhost:7890/docs)](http://localhost:7890/redoc)
+
+
+## Platform data
+
+The platform will save data to the following locations depending on your OS:
+
+```
+Windows: %userprofile%\AppData\Roaming\SatOP
+Linux:   ~/.local/share/SatOP
+macOS:   ~/Library/Application Support/SatOP
+```
+
+(**Note on Windows:** If you have the Windows Store version of Python installed, it might instead be placed in a virtualised folder under `%userprofile%\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\Roaming\SatOP`. If you manually delete this folder and create the one in `AppData\Roaming`, this can be circumvented.)
+
+### Config
+
+SatOP can be configured to listen to a different IP and port by editing (or creating) `config/api.yml` in the SatOP directory. E.g. the following will listen on all interfaces on port 1234:
+
+```yaml
+host: 0.0.0.0
+port: 1234
+```
+
+In the future, more configuration options will become available. 
+
+### Plugins
+
+Plugins can be installed on the platform by placing their directory in the 
+
+
+## Development
 For development, start by cloning the repository
 ```sh
 git clone git@github.com:discosat/satop-platform.git
@@ -10,48 +84,36 @@ or
 git clone https://github.com/discosat/satop-platform.git
 ```
 
+Enter the `satop-platform` directory:
+```
+cd satop-platform
+```
 
-Windows (powershell or command prompt)
+Create and activate a Python virtual environment
+
+Windows
 ```ps1
-# Create a virtual environment
 python -m venv .venv
-# Activate the virtual environment
 .venv\Scripts\activate
 ```
 
 Linux / macOS
 ```sh
-# Create a virtual environment
 python -m venv .venv
-# Activate the virtual environment
 source .venv/bin/activate
 ```
 
-## Install
+Install the satop platform as a development package in the virtual environment, which makes changes take affect as modifications are made. 
 
-### For development
 ```sh
-# Install SatOP as a development package
 pip install --editable .
 ```
 
-### For production
-Run either
+It can then be started with
 
-```sh
-pip install git+ssh://git@github.com:discosat/satop-platform.git
-```
-or
-```sh
-pip install git+https://github.com/discosat/satop-platform.git
-```
-
-## Run
 ```sh
 python -m satop_platform [-vv]
 ```
-
-
 
 ## Plugin development
 
@@ -95,11 +157,153 @@ targets:
 
 ### Capabilities
 
-| Capability                       | Description                                                                                 | Risk |
-| -------------------------------- | ------------------------------------------------------------------------------------------- | ---- |
-| http.add_routes                  | The FastAPI APIRouter defined in the plugin will be mounted on the main FastAPI application | low  |
-| security.authentication_provider | Allows the plugin access to authentication methods, such as creating JWT tokens             | high |
+Capabilitites add a way to set extra steps that need to happen as plugins are initialised. 
 
-TODO: does the capabilities make sense to have, when the plugins run in the same 
-process as the rest of the platform? It could potentially be easy to bypass 
-security/directly access secrets from environment variables/disk/RAM!?
+It is not a security feature, as plugins are not isolated/sandboxed processes, so even without the capability implementation, they could in theory do the same process. It is only there as a simple check to ease development.
+
+The following capabilities are supported, 
+
+| Capability                       | Description                                                                                 |
+| -------------------------------- | ------------------------------------------------------------------------------------------- |
+| http.add_routes                  | The FastAPI APIRouter defined in the plugin will be mounted on the main FastAPI application |
+| security.authentication_provider | Allows the plugin access to authentication methods, such as creating JWT tokens, by dependency injection |
+
+
+
+## Authentication and authorization
+
+As API routes can be secured, only allowing access to authenticated and authorized users, some setup is required to define who is allowed to do what. 
+
+The two core principles of the authorization system is "entities" and "scopes". As the platform is made for interoperability, both people and other systems should be able to access the platform resources, so both of these are defined under the umbrella-term "entity". 
+
+Scopes are various permissions an entity has, and API routes can be setup to require a specific set of scopes. 
+
+Example of creating a new user with the included email-password authentication plugin:
+
+1. Create a new _person_ entity in the authorisation database:
+```
+POST /api/auth/entities
+
+Request body:
+{
+  "name": "John Smith",
+  "type": "person",
+  "scopes": "user,admin"
+}
+
+Response body:
+{
+  "type": "person",
+  "scopes": "user,admin",
+  "name": "John Smith",
+  "id": "b3552f9d-9800-4fe1-9770-aafde5083af6"
+}
+```
+
+2. Define the identity identifier that gets authenticated by the specified provider. In this case, the `email_password`-based provider should authenticate users based on what their email-address is:
+```
+POST /api/auth/entities/b3552f9d-9800-4fe1-9770-aafde5083af6/provider
+
+Request body:
+{
+  "provider": "email_password",
+  "identity": "john@example.com"
+}
+
+Response body:
+{
+  "entity_id": "b3552f9d-9800-4fe1-9770-aafde5083af6",
+  "provider": "email_password",
+  "identity": "john@example.com"
+}
+```
+
+3. Create the user with a password for the identity-provider plugin's database. Alternative authentication plugins might not need this step, e.g. if it connects to a SSO-service where the user has already been created.
+
+```
+POST /api/plugins/login/user
+
+Request body:
+{
+  "email": "john@example.com",
+  "password": "correct-horse-battery-staple"
+}
+
+Response: 
+201 Created
+```
+
+4. An access token can then be obtained from the identity-provider plugin:
+```
+POST /api/plugins/login/token
+
+Request body:
+{
+  "email": "john@example.com",
+  "password": "correct-horse-battery-staple"
+}
+
+Response body: 
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiMzU1MmY5ZC05ODAwLTRmZTEtOTc3MC1hYWZkZTUwODNhZjYiLCJ0eXAiOiJhY2Nlc3MiLCJleHAiOjE3Mzc1NTk1MDd9.it5LtH-CyhgQ7F3XgPbtkK-5nUzVNZR0rpuHAPI4-7M"
+}
+```
+
+5. This token can then be used to access restricted API routes, by adding it as a `Bearer`-token in the request header.
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiMzU1MmY5ZC05ODAwLTRmZTEtOTc3MC1hYWZkZTUwODNhZjYiLCJ0eXAiOiJhY2Nlc3MiLCJleHAiOjE3Mzc1NTk1MDd9.it5LtH-CyhgQ7F3XgPbtkK-5nUzVNZR0rpuHAPI4-7M
+```
+
+
+
+### Test flag
+
+The platform can be started with the following testing flag:
+
+```sh
+python -m satop_platform --test-auth
+```
+
+<ins>!! **THIS IS INHERENTLY INSECURE AND SHOULD NEVER BE USED IN PRODUCTION  !!**</ins>
+
+
+It allows using a fake token for authorization that specifies a test user and their allowed scopes. 
+The test token is a username and comma-seperated list of scopes, separated by a semi-colon. 
+
+Example in the auth-header:
+
+```
+Authorization: Bearer steve;user,admin,test
+```
+
+
+## TODO
+
+The following is a starting point for missing features. Add more here and update the list as required. 
+
+When starting work on one of the missing features, first create a new issue on GitHub from the list.
+
+### Auth
+
+- [ ] Protect neccessary routes
+- [ ] Bootstrapping first-user creation when these routes are protected
+- [ ] Entity modification and management
+- [ ] Be able to refresh/renew tokens
+- [ ] Standardize scopes and their naming scheme, 
+- [ ] Add a way for components and plugins to specify which scopes they add to the system to enable easier user creation. 
+- [ ] Scopes should be hierarchical, so e.g. a user with the "admin" scope would be authorized for routes requiring "admin.user_create".
+
+### Logging
+
+- [ ] Connect the syslog with a graph database to save event and traceability data
+- [ ] Use the syslaog for all events that require traceability across the platform
+
+### Plugins
+
+- [ ] Refactor the plugin engine as a class
+- [ ] Better structure when passing platform components to plugins
+- [ ] Support full life-cycle (also shutdown) for plugin targets
+
+### New features
+
+- [ ] Event-messaging system that allows emitting and listening for global events from any part of the platform.
