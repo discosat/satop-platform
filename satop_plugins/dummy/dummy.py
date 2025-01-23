@@ -15,7 +15,12 @@ class Dummy(Plugin):
 
 
         self.api_router = APIRouter()
-        @self.api_router.get('/hello')
+        @self.api_router.get(
+                '/hello',
+                summary='Dummy plugin hello',
+                description='Returns a hello message from the Dummy plugin',
+                response_description="Hello message"
+                )
         async def __hello():
             return self.return_hello()
     

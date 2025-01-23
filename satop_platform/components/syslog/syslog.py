@@ -4,12 +4,13 @@ import hashlib
 import os
 import shutil
 from typing import IO
-from fastapi import APIRouter, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, Response, UploadFile, status
+from fastapi.responses import FileResponse, JSONResponse
 import sqlalchemy
 import sqlmodel
 from sqlalchemy.engine import Engine
 import re
+from satop_platform.components.restapi import exceptions
 from satop_platform.core import config
 
 from satop_platform.components.syslog import models
@@ -38,25 +39,57 @@ class Syslog:
             tags=['Logging']
         )
 
-        @router.post('/events')
+        @router.post('/events',
+                summary="Add an event to the log",
+                description="Add a new event to the system log. Events consist of relationships of RDF triples. If the predicate or object is omitted in a triple, the event action itself will referenced here.\n\nIf omitted, 'id' and 'timestamp' wil be automatically generated.",
+                response_description="The full event with timestamp and ID added if they were omitted in the original request.",
+            )
         async def new_log_event(event: models.Event):
             self.log_event(event)
             return event
 
-        @router.post('/artifacts', status_code=201)
+        @router.post('/artifacts', 
+                summary="Upload new artifact",
+                description="Upload a file as an artifact for referencing in the logging system.",
+                response_description="Successful upload. Contains calculated SHA1-hash of the artifact to use in log events.",
+                status_code=status.HTTP_201_CREATED,
+                response_model=models.ArtifactStore,
+                responses={
+                    status.HTTP_200_OK: {
+                        'description': 'Artifact already exists. Content "detail" includes file SHA1 after last period.',
+                        'content': {
+                            'application/json': {
+                                'example': {"detail": "Artifact already exists. Reupload not neccessary. 5372ef2198557450d7424ba9c36151d932fb45f0"}
+                            }
+                        }
+                    }
+                }
+            )
         def upload_artifact(file: UploadFile):
             try:
-                return self.create_artifact(file.file, file.filename)
+                artifact = self.create_artifact(file.file, file.filename)
+                return JSONResponse(
+                    status_code=status.HTTP_201_CREATED,
+                    content=artifact.model_dump(),
+                    headers={ 'Location': './artifacts/'+artifact.sha1}
+                )
             except sqlalchemy.exc.IntegrityError as e: 
                 raise HTTPException(status_code=status.HTTP_200_OK, detail=f'Artifact already exists. Reupload not neccessary. {e.params[0]}')
 
-        @router.get('/artifacts/{hash}')
+        @router.get('/artifacts/{hash}',
+                summary='Download an artifact',
+                description='Get a previously uploaded artifact by its SHA1 hash.',
+                response_class=FileResponse,
+                response_description="(Binary) content of the requested artifact",
+                responses={**exceptions.NotFound("Artifact not found").response}
+
+            )
         def get_artifact(hash: str):
             file = self.get_file_path(hash)
             logger.debug(f'Getting artifact file at "{file}"')
 
             if not os.path.exists(file):
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Artifact not found')
+                raise exceptions.NotFound("Artifact not found")
 
             return FileResponse(file)
         

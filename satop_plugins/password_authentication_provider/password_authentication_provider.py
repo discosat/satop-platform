@@ -29,6 +29,16 @@ class Token(BaseModel):
 class PasswordUser(BaseModel):
     email: str
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "email": "hello@example.com"
+                }
+            ]
+        }
+    }
+
 logger = logging.getLogger('plugin.password_authentication_provider')
 
 class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
@@ -48,10 +58,11 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
 
         @self.api_router.post('/token',
                               response_model=Token,
+                              summary='Request an access token.',
+                              description='Obtain a new access token by providing valid user credentials (email and password).',
+                              response_description='A fresh JWT token.',
                               responses= {
-                                  status.HTTP_401_UNAUTHORIZED: {
-                                      'detail': 'string'
-                                  }
+                                  **exceptions.InvalidCredentials().response
                               })
         async def __create_token(credentials: PasswordCredentials):
             if self.validate(credentials.email, credentials.password):
@@ -61,11 +72,13 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
 
         @self.api_router.post('/user',
                               status_code=status.HTTP_201_CREATED,
+                              summary='Create a new user.',
+                              description='Create a new user with the provided credentials, provided that the email is not already registered.',
+                              response_model=PasswordUser,
                               responses= {
                                   status.HTTP_409_CONFLICT: {
-                                      'detail': 'string'
+                                      'description': 'User already exists',
                                   },
-                                  status.HTTP_201_CREATED: {}
                               },
                             #   dependencies=[
                             #       Depends(auth_scope(['users.create']))
@@ -80,11 +93,17 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
                     session.add(entry)
 
                     session.commit()
-                    return Response(status_code=status.HTTP_201_CREATED)
+                    return PasswordUser(email=credentials.email)
                 except sqlalchemy.exc.IntegrityError:
                     raise HTTPException(status.HTTP_409_CONFLICT, 'User already exists')
         
-        @self.api_router.get('/users', response_model=list[PasswordUser])
+        @self.api_router.get(
+                '/users', 
+                response_model=list[PasswordUser],
+                summary='List all users',
+                description='List all registered user emails.',
+                response_description="List of all users that have been registered with the email-password authentication provider.",
+            )
         async def __get_all_users():
             return self.get_users()
 

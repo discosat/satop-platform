@@ -1,6 +1,26 @@
 from fastapi import HTTPException, status
+from pydantic import BaseModel
 
-class InvalidCredentials(HTTPException):
+class HttpErrorModel(BaseModel):
+    detail: str
+
+
+class CustomException(HTTPException):
+    response: dict
+
+    def __init__(self, status_code, detail = None, headers = None):
+        super().__init__(status_code, detail, headers)
+
+        self.response = {
+            status_code: {
+                "description": detail or "Undescribed error",
+                "model": HttpErrorModel
+            }
+        }
+
+
+
+class InvalidCredentials(CustomException):
     def __init__(self,  detail = "Invalid authentication credentials", headers = None):
         _headers = {"WWW-Authenticate": "Bearer"}
 
@@ -13,7 +33,7 @@ class InvalidCredentials(HTTPException):
             headers=_headers,
         )
 
-class InsufficientPermissions(HTTPException):
+class InsufficientPermissions(CustomException):
     def __init__(self,  detail = "Insufficient permissions", headers = None):
         super().__init__(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -21,7 +41,7 @@ class InsufficientPermissions(HTTPException):
             headers=headers
         )
 
-class MissingCredentials(HTTPException):
+class MissingCredentials(CustomException):
     def __init__(self, detail = "Missing credentials", headers = None):
         super().__init__(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -29,7 +49,7 @@ class MissingCredentials(HTTPException):
                 headers=headers,
         )
 
-class InvalidUser(HTTPException):
+class InvalidUser(CustomException):
     def __init__(self, detail = "Invalid entity. The account does not exist or it has been removed.", headers = None):
         super().__init__(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -37,7 +57,7 @@ class InvalidUser(HTTPException):
                 headers=headers,
         )
 
-class InvalidToken(HTTPException):
+class InvalidToken(CustomException):
     def __init__(self, detail = "Token could not be validated.", headers = None):
         super().__init__(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -58,7 +78,7 @@ class NotImplemented(HTTPException):
                 detail="Not Implemented",
             )
         
-class NotFound(HTTPException):
+class NotFound(CustomException):
     def __init__(self, detail="Resource not found", headers=None):
         super().__init__(
                 status_code=status.HTTP_404_NOT_FOUND,

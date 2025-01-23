@@ -69,7 +69,7 @@ class APIApplication:
     #         })
     #     return routes
     
-    def run_server(self, host="127.0.0.1", port=7889):
+    async def run_server(self, host="127.0.0.1", port=7889):
         self.api_app.include_router(self._router)
         
         host = self._api_config.get('host', host)
@@ -78,4 +78,7 @@ class APIApplication:
         logger.debug(f"API app: {self.api_app}")
         # logger.debug(f"Listing routes custom: {self.list_routes()}")
         logger.info(f'Starting server on {host}:{port}')
-        uvicorn.run(self.api_app, host=host, port=port)
+
+        config = uvicorn.Config(self.api_app, host=host, port=port, log_level="info")
+        server = uvicorn.Server(config)
+        await server.serve()

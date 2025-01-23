@@ -199,7 +199,13 @@ class GroundstationConnector:
             
             logger.info(f"Removed WS for GS {name} ({gs_id})")
 
-        @router.get('/stations')
+        @router.get(
+                '/stations',
+                response_model=list[GroundstationsListItem],
+                summary='Get a list of registered groundstations',
+                description='Returns a list of all registered and currently connected groundstations',
+                response_description='List of groundstation names and UUIDs'
+                )
         async def get_groundstations():
             """Other clients can get a list of groundstations/URLs to connect to them
             """
@@ -213,11 +219,36 @@ class GroundstationConnector:
 
             return stations
 
-        @router.post('/stations/{gs_uuid}/control')
+        @router.post(
+                '/stations/{gs_uuid}/control',
+                summary='Send control data to a groundstation',
+                description=
+                """
+Send control data to a groundstation and wait for a response. The response will be returned to the client. 
+
+The control data can be any JSON serializable object, but is expected to be written in a way that the groundstation can understand.
+                """,    # TODO: Unsure about the last bit 
+                response_description='Response from the groundstation'
+                )
         async def control_groundstation(gs_uuid: uuid.UUID, data:dict):
             return await self.send_control(gs_uuid, data)
 
-        @router.post('/stations/{gs_uuid}/frame_test')
+        @router.post(
+                '/stations/{gs_uuid}/frame_test',
+                summary='Send framed control data to a groundstation',
+                description=
+                """
+Send control data to a groundstation and wait for a response. The response will be returned to the client.
+
+The control data can be any JSON serializable object, but is expected to be written in a way that the groundstation can understand.
+
+This is a test endpoint for sending framed data to the groundstation. The data is split into a header and multiple frames. 
+The header contains metadata about the data and the frames contain the actual data. The groundstation is expected to reassemble the data and process it accordingly.
+
+The header data is expected to be a dictionary and the frames are expected to be a list of strings, bytes or dictionaries.
+                """,
+                response_description='Response from the groundstation'
+                )
         async def control_groundstation(gs_uuid: uuid.UUID, header_data:dict):
             frames = header_data.pop('frames')
             await self.send_control(gs_uuid, FramedContent(header_data=header_data,frames=frames))

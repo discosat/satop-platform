@@ -239,9 +239,11 @@ class PlatformAuthorization:
     def get_idp_details(self, provider_name: str):
         with sqlmodel.Session(self.engine) as session:
             statement = sqlmodel.select(models.AuthenticationIdentifiers).where(models.AuthenticationIdentifiers.provider == provider_name)
-            provider = session.exec(statement).all()
+            entitites = session.exec(statement).all()
+
+            provider = self.providers.get(provider_name)
 
             if not provider:
                 raise exceptions.NotFound(f"Provider {provider_name} not found")
 
-            return provider
+            return models.IdentityProviderDetails(provider_hint=provider.identity_hint, registered_users=entitites)

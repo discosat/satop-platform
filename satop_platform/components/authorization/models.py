@@ -1,6 +1,7 @@
 import uuid
 from enum import Enum
 
+from pydantic import BaseModel
 from sqlmodel import SQLModel, Field
 
 class EntityType(str, Enum):
@@ -38,7 +39,7 @@ class ProviderIdentityBase(SQLModel):
             "examples": [
                 {
                     "provider": "email_password",
-                    "identity": "test@email.test"
+                    "identity": "test@example.com"
                 }
             ]
         }
@@ -48,3 +49,7 @@ class AuthenticationIdentifiers(ProviderIdentityBase, table=True):
     __table_args__ = {'extend_existing': True}
     entity_id: uuid.UUID = Field(default=None, foreign_key="entity.id")
 
+
+class IdentityProviderDetails(BaseModel):
+    provider_hint: str
+    registered_users: list[AuthenticationIdentifiers]

@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 import logging
 import os
@@ -53,7 +54,7 @@ class SatOPApplication:
     def run(self):
         run_engine(self.components)
 
-        self.components.api.run_server()
+        asyncio.run(self.components.api.run_server())
 
         self.logger.info('Shutting down')
 

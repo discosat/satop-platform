@@ -1,8 +1,12 @@
 from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
+
+from satop_platform.components.authorization.auth import ProviderDictItem
 
 from .restapi import APIApplication
+from . import exceptions
 from satop_platform.components.authorization import models
 
 from typing import TYPE_CHECKING, Annotated
@@ -27,16 +31,16 @@ def load_routes(components: SatOPComponents):
 
     router = APIRouter(prefix=api_app._root_path, tags=['Platform Core'])
 
-    @router.get('/hello', dependencies=[Depends(api_app.authorization.require_scope(['test']))])
-    async def route_hello():
-        """Test route for the API
+    # @router.get('/hello', dependencies=[Depends(api_app.authorization.require_scope(['test']))])
+    # async def route_hello():
+    #     """Test route for the API
 
-        Returns:
-            dict: A simple message
-        """
-        return {"message": "Hello from main"}
+    #     Returns:
+    #         dict: A simple message
+    #     """
+    #     return {"message": "Hello from main"}
     
-    api_app.include_router(router)
+    # api_app.include_router(router)
 
     # well_known_router = APIRouter(prefix='/.well-known', tags=['.well-known'])
 
@@ -53,92 +57,94 @@ def load_routes(components: SatOPComponents):
 
     @auth_router.get(
         '/entities',
-        summary="Get all entities",
-        description="Get a list of all entities (users) in the system.",
+        summary="List all registered entities",
+        description="Get a list of all entities in the authorization system.",
         response_description="A list of entities.")
-    async def get_entities():
-        return api_app.authorization.get_all_entities()
+    async def get_entities() -> list[models.Entity]:
+        return api_app.authorization.get_all_entities() 
 
     @auth_router.post(
         '/entities',
         response_model=models.Entity,  
         summary="Add a new entity",
-        description="This endpoint allows you to add a new entity (user) to the system.",
-        response_description="The details of the added entity."
+        description="Register a new entity in the authorization system, including the scopes the new entity should have access to.",
+        response_description="The details of the added entity, including the assigned UUID."
     )
-    async def add_entity(entity: models.EntityBase):
-        """
-        Add a new entity (user) to the system.
-
-        Parameters:
-            entity (EntityBase): The entity details to add.
-
-        Returns:
-            Entity: The added entity with ID and other details.
-        """
+    async def add_entity(entity: models.EntityBase) -> models.Entity:
         return api_app.authorization.add_entity(entity)
                 
     @auth_router.get(
         '/entities/{uuid}',
         summary="Get entity details",
-        description="Get details for a specific entity (user).",
-        response_description="The details of the specified entity.")
-    async def get_entity_details(uuid: str):
-        """Get details for a specific entity (user)
-
-        Args:
-            uuid (str): The UUID of the entity to get details for
-
-        Returns:
-            (models.Entity): The entity details
-        """
+        description="Get details for a specific entity.",
+        response_description="The details of the specified entity.",
+        responses={**exceptions.NotFound("Entity not found").response}
+    )
+    async def get_entity_details(uuid: str) -> models.Entity:
         return api_app.authorization.get_entity_details(uuid)
     
-    @auth_router.post('/entities/{uuid}/provider')
-    async def connect_entity_idp(uuid: str, provider: models.ProviderIdentityBase):
-        """Connect an entity (user) to an identity provider
+    @auth_router.post(
+            '/entities/{uuid}/provider',
+            summary="Connect an entity to an identity provider",
+            description="""\
+Connect an entity to an identity provider given a identifier that is authenticated by the provider.
 
-        Args:
-            uuid (str): The UUID of the entity to connect
-        
-        Body:
-            provider (models.ProviderIdentityBase): The identity provider to connect to (e.g. email-password, OAuth, etc.)
+Two entities must not have the same identity with the same provider. 
 
-        Returns:
-            (models.AuthenticationIdentifiers): The authentication identifiers for the entity
-        """
+E.g. a user identified by their email address can afterwards be authenticated by proving they have the corresponding password in the 'email_password' provider.\
+""",
+            response_description="The authentication identifiers for the entity."
+            )
+    async def connect_entity_idp(uuid: str, provider: models.ProviderIdentityBase) -> models.AuthenticationIdentifiers:
         return api_app.authorization.connect_entity_idp(uuid, provider)
     
-    @auth_router.get('/providers')
-    async def get_identity_providers():
-        """Get a list of all identity providers
-
-        Returns:
-            (dict(str, str)): A dictionary of identity providers
-        """
+    @auth_router.get(
+            '/providers',
+            summary="Get identity providers",
+            description="Get a list of all identity providers and hints for the identity field associated with the IdP.",
+            responses={
+                200: {
+                    "description": "A dictionary of identity providers. Depends on which authentication provider plugins have been added to the platform.",
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "email_password": { "identity_hint": "Email address of the user" },
+                                "api_key": { "identity_hint": "API key of the system" },
+                                "AUID": { "identity_hint": "AUID for AU SSO (auXXXXXX@uni.au.dk)" },
+                            }
+                        }
+                    }
+                }
+            }
+        )
+    async def get_identity_providers() -> dict[str, ProviderDictItem]:
         return api_app.authorization.get_identity_providers()
     
-    @auth_router.get('/providers/{name}')
-    async def get_idp_details(name: str):
-        """Get details for a specific identity provider
-
-        Args:
-            name (str): The name of the identity provider
-
-        Returns:
-            (list(models.AuthenticationIdentifiers)): The authentication identifiers for the identity provider
-        """
+    @auth_router.get(
+            '/providers/{name}',
+            summary="Get identity provider details",
+            description="Get details for a specific identity provider.",
+            response_description="The authentication identifiers for the identity provider.",
+            responses={**exceptions.NotFound("Provider not found").response}
+        )
+    async def get_idp_details(name: str) -> models.IdentityProviderDetails:
         return api_app.authorization.get_idp_details(name)
 
-    @auth_router.get('/test', dependencies=[Depends(auth.require_scope(['test']))]) # use auth.require_login instead to allow any logged in entity
-    async def test_auth(request: Request):
-        """Test the authentication system
+    @auth_router.get(
+            '/test', 
+            summary="Test the authentication system",
+            description="Test the authentication system by returning the state of the request for which an Entity is required to have been assigned the 'test' scope.",
+            response_description="The state of the request.",
+            responses={
+                **exceptions.MissingCredentials().response, 
+                **exceptions.InsufficientPermissions().response
+            },
+            dependencies=[Depends(auth.require_scope(['test']))]    # use auth.require_login instead to allow any logged in entity
+        ) 
+    async def test_auth(request: Request) -> dict:
 
-        Returns:
-            (dict): The state of the request
-        """
         return {
-            'request.state': request.state,
+            "request.state": request.state._state
         }
 
     api_app.include_router(auth_router)
