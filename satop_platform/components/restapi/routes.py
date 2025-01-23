@@ -1,5 +1,5 @@
 from __future__ import annotations
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
 from .restapi import APIApplication
@@ -18,9 +18,6 @@ def load_routes(components: SatOPComponents):
     @root_router.get('/')
     async def docs_redirect():
         """Redirect to the API documentation
-
-        Returns:
-            RedirectResponse: Redirect to the API documentation
         """
         return RedirectResponse('/docs')
     
@@ -54,28 +51,38 @@ def load_routes(components: SatOPComponents):
     # api_app.api_app.include_router(well_known_router)
     auth_router = APIRouter(prefix='/auth', tags=["Authorization"])
 
-    @auth_router.get('/entities')
+    @auth_router.get(
+        '/entities',
+        summary="Get all entities",
+        description="Get a list of all entities (users) in the system.",
+        response_description="A list of entities.")
     async def get_entities():
-        """Get a list of all entities (users) in the system
-
-        Returns:
-            (list(models.Entity)): List of entities
-        """
         return api_app.authorization.get_all_entities()
 
-    @auth_router.post('/entities')
+    @auth_router.post(
+        '/entities',
+        response_model=models.Entity,  
+        summary="Add a new entity",
+        description="This endpoint allows you to add a new entity (user) to the system.",
+        response_description="The details of the added entity."
+    )
     async def add_entity(entity: models.EntityBase):
-        """Add a new entity (user) to the system
+        """
+        Add a new entity (user) to the system.
 
-        Args:
-            entity (models.EntityBase): The entity to add
+        Parameters:
+            entity (EntityBase): The entity details to add.
 
         Returns:
-            (models.Entity): The added entity
+            Entity: The added entity with ID and other details.
         """
         return api_app.authorization.add_entity(entity)
-    
-    @auth_router.get('/entities/{uuid}')
+                
+    @auth_router.get(
+        '/entities/{uuid}',
+        summary="Get entity details",
+        description="Get details for a specific entity (user).",
+        response_description="The details of the specified entity.")
     async def get_entity_details(uuid: str):
         """Get details for a specific entity (user)
 
@@ -93,6 +100,8 @@ def load_routes(components: SatOPComponents):
 
         Args:
             uuid (str): The UUID of the entity to connect
+        
+        Body:
             provider (models.ProviderIdentityBase): The identity provider to connect to (e.g. email-password, OAuth, etc.)
 
         Returns:
