@@ -307,7 +307,7 @@ When starting work on one of the missing features, first create a new issue on G
 
 - [ ] Refactor the plugin engine as a class
 - [ ] Better structure when passing platform components to plugins
-- [ ] Support full life-cycle (also shutdown) for plugin targets
+- [x] Support full life-cycle (also shutdown) for plugin targets
 
 ### New features
 
