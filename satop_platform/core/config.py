@@ -131,6 +131,12 @@ class SatopConfig:
         # Return a default value if it does not exist in any of the 
         return default
 
+    def get_int(self, key:str, default:int|None)->int|None:
+        try:
+            return int(self.get(key, default))
+        except (ValueError, TypeError):
+            return default
+
 # Function to recursively merge dictionaries
 def merge_dicts(dict1, dict2):
     logger.debug(f"Merging dicts: dict 1: {dict1}, dict2: {dict2}")
