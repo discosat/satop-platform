@@ -3,7 +3,7 @@ from fastapi import FastAPI, APIRouter
 import logging
 import uvicorn
 
-from satop_platform.core import config
+from satop_platform.core.config import SatopConfig
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -21,7 +21,8 @@ class APIApplication:
     _router: APIRouter
 
     def __init__(self, components:SatOPComponents, *args, **kwargs):
-        self._api_config = config.load_config('api.yml')
+        #self._api_config = config.load_config('api.yml')
+        self._api_config = SatopConfig('api')
         self._root_path = self._api_config.get('root_path', '/api')
 
         self.api_app = FastAPI(*args, **kwargs)
