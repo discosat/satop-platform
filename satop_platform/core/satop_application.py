@@ -6,16 +6,13 @@ import pathlib
 import subprocess
 
 from satop_platform.components.restapi import routes
-from satop_platform.plugin_engine.plugin_engine import run_engine, stop_engine
+from satop_platform.plugin_engine.plugin_engine import SatopPluginEngine
 from satop_platform.core import config
 from satop_platform.core.events import SatOPEventManager
 from satop_platform.components.authorization.auth import PlatformAuthorization
 from satop_platform.components.groundstation.connector import GroundstationConnector
 from satop_platform.components.restapi.restapi import APIApplication
 from satop_platform.components.syslog.syslog import Syslog
-
-from .component_initializer import SatOPComponents
-
 class SatOPApplication:
     logger: logging.Logger
     event_manager: SatOPEventManager
@@ -23,6 +20,7 @@ class SatOPApplication:
     auth: PlatformAuthorization
     syslog: Syslog
     gs: GroundstationConnector
+    plugin_engine: SatopPluginEngine
 
     # read-only properties
     @property
@@ -73,17 +71,19 @@ class SatOPApplication:
 
         self.logger.info(f'Initialized platform application {application_title} v{version}')
         routes.load_routes(self)
+
+        self.plugin_engine = SatopPluginEngine(self)
     
     def run(self):
-        run_engine(self.components, self.event_manager)
+        self.event_manager.publish('satop.startup', None)
 
         try:
-            asyncio.run(self.components.api.run_server())
+            asyncio.run(self.api.run_server())
         except KeyboardInterrupt:
             self.logger.warning('Keyboard interrupt')
         finally:
             self.logger.info('Shutting down')
-            stop_engine(self.event_manager)
+            self.event_manager.publish('satop.shutdown', None)
 
     def get_git_head(self):
         this_dir = os.path.dirname(os.path.realpath(__file__)) 
