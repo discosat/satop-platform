@@ -1,5 +1,6 @@
 import logging
 import pathlib
+import re
 import sys
 import os
 import yaml
@@ -13,6 +14,18 @@ logger = logging.getLogger(__name__)
 
 
 def get_root_data_folder():
+    env_path = os.environ.get('SATOP_DATA_ROOT')
+    if env_path:
+        logger.info(f'Got data dir from env: {env_path}')
+        p = pathlib.Path(env_path)
+        
+        try:
+            os.makedirs(p, exist_ok=True)
+            return p
+        except Exception as e:
+            logger.warning(f'Data directory defined in env ({env_path}) does not exist and could not be created. Using OS specific path. Error: {e}')
+
+
     home = pathlib.Path.home()
 
     if sys.platform == "win32":
@@ -41,9 +54,13 @@ class SatopConfig:
             parent_dir.glob(f'{config_name}.yml')
         ))
 
+        logger.debug(f'Found config files: {", ".join(map(str,paths))}')
+
         if len(paths) < 1:
             return None
         else:
+            if len(paths) > 1:
+                logger.warning(f'Found multiple valid config files. Using the first: {paths[0]}')
             return paths[0]
     
     def _load_config(self, path: pathlib.Path):
@@ -97,7 +114,10 @@ class SatopConfig:
         key_path = key.split('.')
 
         # Create variable name to lookup in the environment
-        env_name = 'SATOP_' + '__'.join(key_path).upper()
+        env_name = f'SATOP_{self.__config_name}__' + '__'.join(key_path)
+        env_name = env_name.upper()
+        env_name = re.sub(r'[-.\s]', '_', env_name)
+        env_name = re.sub(r'[^A-Z0-9_]', '', env_name)
 
         # The list specifies the order it tries to read the config from; ENV first, then the user-space config followed by the default config file.
         for val in [

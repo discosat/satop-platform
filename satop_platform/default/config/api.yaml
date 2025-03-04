@@ -1,0 +1,4 @@
+root_path: /api
+plugin_path: /plugins
+host: 127.0.0.1
+port: 7889
