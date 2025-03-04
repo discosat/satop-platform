@@ -74,7 +74,7 @@ class APIApplication:
         self.api_app.include_router(self._router)
         
         host = self._api_config.get('host', host)
-        port = self._api_config.get('port', port)
+        port = self._api_config.get_int('port', port)
 
         logger.debug(f"API app: {self.api_app}")
         # logger.debug(f"Listing routes custom: {self.list_routes()}")
