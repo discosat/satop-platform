@@ -8,7 +8,7 @@ from satop_platform.core.config import SatopConfig
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from satop_platform.components.authorization.auth import PlatformAuthorization
-    from satop_platform.core.component_initializer import SatOPComponents
+    from satop_platform.core.satop_application import SatOPApplication
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +20,13 @@ class APIApplication:
     _root_path: str
     _router: APIRouter
 
-    def __init__(self, components:SatOPComponents, *args, **kwargs):
+    def __init__(self, app: SatOPApplication, *args, **kwargs):
         #self._api_config = config.load_config('api.yml')
         self._api_config = SatopConfig('api')
         self._root_path = self._api_config.get('root_path', '/api')
 
         self.api_app = FastAPI(*args, **kwargs)
-        self.authorization = components.auth
+        self.authorization = app.auth
         self._router = APIRouter(prefix=self._root_path)
 
     def mount_plugin_router(self, plugin_name:str, plugin_router: APIRouter, tags: list[str] = None, plugin_path: str=None):

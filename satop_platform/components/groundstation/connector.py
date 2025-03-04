@@ -16,8 +16,9 @@ from pydantic import BaseModel
 from satop_platform.components.restapi.restapi import APIApplication
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
-    from satop_platform.core.component_initializer import SatOPComponents
+    from satop_platform.core.satop_application import SatOPApplication
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +49,9 @@ class ResponseQueueItem:
 class GroundstationConnector:
     registered_groundstations: dict[uuid.UUID, GroundstationRegistrationItem]
 
-    def __init__(self, components: SatOPComponents):
+    def __init__(self, app: SatOPApplication):
         self.registered_groundstations = dict()
-        self.__setup_routes(components.api)
+        self.__setup_routes(app.api)
 
     async def __websocket_send(self, gs_id:uuid.UUID, data:dict|FramedContent):
         request_id = uuid.uuid4()
