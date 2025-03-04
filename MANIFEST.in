@@ -1,0 +1,2 @@
+include satop_platform/default/config/*.yml
+include satop_platform/default/config/*.yaml
