@@ -40,11 +40,13 @@ class PluginDictItem:
 class SatopPluginEngine:
     _plugins : dict[str, PluginDictItem]
     _load_order: list
+    _registered_plugin_methods: dict[str, dict[str, callable]]
     app: SatOPApplication
 
     def __init__(self, app:SatOPApplication):
         self._plugins = dict()
         self._load_order = dict()
+        self._registered_plugin_methods = dict()
         self.app = app
 
         self._discover_plugins()
@@ -178,14 +180,19 @@ class SatopPluginEngine:
 
                 # Create an instance of the plugin
                 plugin_data_dir = satop_platform.core.config.get_root_data_folder() / 'plugin_data' / plugin_name
-                plugin_instance = module.PluginClass(data_dir=plugin_data_dir, platform_auth=self.app.auth, gs_connector=self.app.gs)
+                plugin_instance = module.PluginClass(data_dir=plugin_data_dir, app=self.app)
+
+                # Register flagged methods
+                for attr_name in dir(plugin_instance):
+                    method = getattr(plugin_instance, attr_name)
+                    if callable(method) and getattr(method, '_register_as_plugin_function', False):
+                        method_name = method.__name__
+                        self._register_plugin_method(plugin_name, method_name, method)
 
                 # Store the plugin instance before initialization
                 plugin_info.instance = plugin_instance
                 logger.debug(f"Loaded plugin: {plugin_name}")
-                
-                # Set the sys_log
-                plugin_info.instance.sys_log = self.app.syslog
+
 
                 # Set the API router, if any
                 caps = config.get('capabilities', [])
@@ -200,6 +207,7 @@ class SatopPluginEngine:
                     self._register_authentication_plugins(plugin_instance)
 
                 logger.info(f"Loaded plugin: {plugin_name}")
+
             except Exception as e:
                 logger.error(f"Failed to load plugin '{plugin_name}': {e}")
                 print(traceback.format_exc())
@@ -353,6 +361,28 @@ class SatopPluginEngine:
         logger.debug(f'Target graph root nodes: {trees.keys()}')
 
         return trees
+
+    def _register_plugin_method(self, plugin_name:str, method_name:str, func:callable):
+        if plugin_name not in self._registered_plugin_methods:
+            self._registered_plugin_methods[plugin_name] = dict()
+
+        if method_name in self._registered_plugin_methods[plugin_name]:
+            raise ValueError(f"Function '{method_name}' already registered by plugin '{plugin_name}'.")
+
+        self._registered_plugin_methods[plugin_name][method_name] = func
+        logger.debug(f"Registered function '{method_name}' from plugin '{plugin_name}'.")
+    
+    def get_plugin_method(self, plugin:str, method:str):
+        return self._registered_plugin_methods.get(plugin,{}).get(method)
+
+    def call_plugin_method(self, plugin:str, method:str, *args, **kwargs):
+        func = self.get_plugin_method(plugin,method)
+        if func is None:
+            raise RuntimeError(f'Method {plugin}/{method} not found')
+        return func(*args, **kwargs)
+    
+    def get_registered_plugin_methods(self):
+        return self._registered_plugin_methods
     
     def startup(self):
         self.app.event_manager.publish('satop.startup', None)
