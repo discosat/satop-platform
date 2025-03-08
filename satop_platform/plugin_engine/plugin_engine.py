@@ -20,6 +20,7 @@ from fastapi import APIRouter
 import satop_platform.core.config
 from satop_platform.core.config import merge_dicts
 from satop_platform.components.restapi import APIApplication, exceptions
+from satop_platform.core.events import SatOPEventManager
 from satop_platform.plugin_engine.plugin import AuthenticationProviderPlugin, Plugin
 
 from typing import TYPE_CHECKING
@@ -348,15 +349,26 @@ def _graph_targets() -> dict[str, list[callable]]:
     return trees
 
 def execute_target(graph, target_root):
+    logger.debug(f'Executing graph {target_root}')
     targets = graph.get(target_root, [])
     for target_name, target_attrs in targets:
         fun = target_attrs.get('function')
         if fun:
             logger.info(f'Running target {target_name}')
             fun()
-        
 
-def run_engine(components: SatOPComponents):
+def execute_target2(targets):
+    for target_name, target_attrs in targets:
+        fun = target_attrs.get('function')
+        if fun:
+            logger.info(f'Running target {target_name}')
+            fun()
+
+def execute_target_callback(targets):
+    return lambda _: execute_target2(targets)
+
+
+def run_engine(components: SatOPComponents, event_manager: SatOPEventManager):
     '''
     Discover all plugins in the "plugins" directory (expected to be located in root satop_platform directory)
 
@@ -369,4 +381,21 @@ def run_engine(components: SatOPComponents):
     _resolve_dependencies()
     _load_plugins(components)
     target_graphs = _graph_targets()
-    execute_target(target_graphs, 'satop.startup')
+
+    for root, targets in target_graphs.items():
+        event_manager.subscribe(root, execute_target_callback(targets))
+    
+    logger.debug(event_manager.subscriptions)
+
+    # execute_target(target_graphs, 'satop.startup')
+    event_manager.publish('satop.startup', None)
+
+
+def stop_engine(event_manager: SatOPEventManager):
+    event_manager.publish('satop.shutdown', None)
+
+    for name, p in _plugins.items():
+        if p.instance:
+            del p.instance
+            p.instance = None
+

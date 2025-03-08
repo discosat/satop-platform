@@ -5,14 +5,16 @@ import os
 import subprocess
 
 from satop_platform.components.restapi import routes
-from satop_platform.plugin_engine.plugin_engine import run_engine
+from satop_platform.plugin_engine.plugin_engine import run_engine, stop_engine
 from satop_platform.core import config
+from satop_platform.core.events import SatOPEventManager
 
 from .component_initializer import SatOPComponents
 
 class SatOPApplication:
     logger: logging.Logger
     components: SatOPComponents
+    event_manager: SatOPEventManager
 
     def __init__(self, log_level = 0):
         self.logger = logging.getLogger()
@@ -30,6 +32,8 @@ class SatOPApplication:
         else:
             console_log_handler.setLevel(logging.WARNING)
         self.logger.addHandler(console_log_handler)
+
+        self.event_manager = SatOPEventManager()
 
         data_dir = config.get_root_data_folder()
         if not data_dir.exists():
@@ -52,11 +56,15 @@ class SatOPApplication:
         routes.load_routes(self.components)
     
     def run(self):
-        run_engine(self.components)
+        run_engine(self.components, self.event_manager)
 
-        asyncio.run(self.components.api.run_server())
-
-        self.logger.info('Shutting down')
+        try:
+            asyncio.run(self.components.api.run_server())
+        except KeyboardInterrupt:
+            self.logger.warning('Keyboard interrupt')
+        finally:
+            self.logger.info('Shutting down')
+            stop_engine(self.event_manager)
 
     def get_git_head(self):
         this_dir = os.path.dirname(os.path.realpath(__file__)) 
