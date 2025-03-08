@@ -39,9 +39,15 @@ auth_scheme = HTTPBearer(
 )
 
 # Missing:
-# - Token scopes (User Scopes)
-# - Match Authentication Plugin Token with User, so different plugins can be used for different users (Depends() function?)
-# - Make sure Token can decode (So we can validate it)
+# - Token scopes (User Scopes) (Dependency called in auth_scope)
+# - Match Authentication Plugin Token with User, so different plugins can be used for different users (Depends() function?) Already Done in satop_plugins' password_authentication_provider.py - Done
+# - Make sure Token can decode (So we can validate it) - Done
+# - Make Token Reneval (Update Access Token) (If new access token hasent been requested in 15 minutes, user has to log in again)
+# - Make Token Reneval (Update Refresh Token) (Get logged out after 1 day of not using the platform/Stay logged in for 1 day after last use (unless logged out))
+# - Make User
+# - Make User Scopes
+# - Make possible to add new Scopes to User
+# - Make possible to remove Scopes from User
 
 router = APIRouter(prefix='/tokens', tags=['Token Authorization'])
 
@@ -108,6 +114,21 @@ async def get_user(token: Annotated[str, Depends(auth_scheme)]):
 
 from . import models
 
+# Checks what scopes the user needs to access something, and checks if the user has them
+def auth_scope(needed_scopes: Iterable[str] | str):
+    def f(credentials: Annotated[HTTPAuthorizationCredentials, Depends(auth_scheme)]):
+        token = credentials.credentials
+        print(token)
+        # Validate Token
+        payload = validate_token(token)
+        token_scopes = set(payload.get("scopes", [])) # TODO: fetch user/token scopes (Make a set of scopes from the token that the user (uuid) has access to)
+        if (isinstance(needed_scopes, str) and needed_scopes in token_scopes) \
+            or (set(needed_scopes).issubset(token_scopes)):
+            return True
+        
+        raise exceptions.InsufficientPermissions()
+    return f
+
 @dataclass
 class ProviderDictItem:
     identity_hint: str | None = None
@@ -149,6 +170,13 @@ class PlatformAuthorization:
         }
         return create_access_token(data, expires_delta=expires_delta)
     
+    def create_refresh_token(self, uuid: uuid.UUID, typ = 'refresh', expires_delta: timedelta | None = None):
+        data = {
+            'sub': str(uuid),
+            'typ': typ
+        }
+        return create_refresh_token(data, expires_delta=expires_delta)
+
     def require_login(self, credentials: Annotated[HTTPAuthorizationCredentials|None, Depends(auth_scheme)], request: Request):
         if credentials is None:
             raise exceptions.MissingCredentials

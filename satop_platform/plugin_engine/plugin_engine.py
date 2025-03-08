@@ -240,8 +240,17 @@ def _register_authentication_plugins(plugin_instance: AuthenticationProviderPlug
         # TODO: Make it possible for plugin to specify expiry, e.g. for long-lived application keys
         token = api.authorization.create_token(uuid)
         return token
+    
+    def _get_refresh_token(user_id: str):
+        uuid = api.authorization.get_uuid(provider_key, user_id)
+        if not uuid:
+            raise exceptions.InvalidCredentials
+        # TODO: Make it possible for plugin to specify expiry, e.g. for long-lived application keys
+        token = api.authorization.create_refresh_token(uuid)
+        return token
 
     _plugins.get(plugin_name).instance.create_auth_token = _get_auth_token
+    _plugins.get(plugin_name).instance.create_refresh_token = _get_refresh_token
 
 def _graph_targets() -> dict[str, list[callable]]:
     G = nx.DiGraph()
