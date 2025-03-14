@@ -186,5 +186,9 @@ E.g. a user identified by their email address can afterwards be authenticated by
         "refresh_token": new_refresh_token
         }) 
         """
+    
+    @auth_router.get('/all_scopes', response_model=list[str])
+    async def list_all_scopes():
+        return auth.used_scopes
 
     api_app.include_router(auth_router)

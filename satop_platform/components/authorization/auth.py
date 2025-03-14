@@ -136,6 +136,7 @@ class ProviderDictItem:
 class PlatformAuthorization:
     providers: dict[str, ProviderDictItem]
     engine: Engine
+    used_scopes: set
 
     def __init__(self):
         self.providers = dict()
@@ -145,6 +146,7 @@ class PlatformAuthorization:
         engine_url = 'sqlite:///'+str(engine_path)
         self.engine = sqlmodel.create_engine(engine_url)
         SQLModel.metadata.create_all(self.engine, [models.Entity.__table__, models.AuthenticationIdentifiers.__table__])
+        self.used_scopes = set()
 
     def register_provider(self, provider_key: str, identity_hint: str|None = None):
         if provider_key in self.providers:
@@ -192,6 +194,11 @@ class PlatformAuthorization:
         return payload
 
     def require_scope(self, needed_scopes: Iterable[str] | str):
+        if isinstance(needed_scopes, str):
+            self.used_scopes.add(needed_scopes)
+        elif isinstance(needed_scopes, Iterable):
+            self.used_scopes |= set(needed_scopes)
+
         def f(token_payload: Annotated[dict, Depends(self.require_login)], request: Request):
             with sqlmodel.Session(self.engine) as session:
                 validated_scopes = token_payload.get('test_scopes')
