@@ -2,19 +2,35 @@ import asyncio
 import importlib
 import logging
 import os
+import pathlib
 import subprocess
 
 from satop_platform.components.restapi import routes
-from satop_platform.plugin_engine.plugin_engine import run_engine, stop_engine
+from satop_platform.plugin_engine.plugin_engine import SatopPluginEngine
 from satop_platform.core import config
 from satop_platform.core.events import SatOPEventManager
-
-from .component_initializer import SatOPComponents
-
+from satop_platform.components.authorization.auth import PlatformAuthorization
+from satop_platform.components.groundstation.connector import GroundstationConnector
+from satop_platform.components.restapi.restapi import APIApplication
+from satop_platform.components.syslog.syslog import Syslog
 class SatOPApplication:
     logger: logging.Logger
-    components: SatOPComponents
     event_manager: SatOPEventManager
+    api: APIApplication
+    auth: PlatformAuthorization
+    syslog: Syslog
+    gs: GroundstationConnector
+    plugin_engine: SatopPluginEngine
+
+    # read-only properties
+    @property
+    def data_root(self):
+        return self.__data_root
+
+    @property
+    def version(self):
+        return self.__version
+    
 
     def __init__(self, log_level = 0):
         self.logger = logging.getLogger()
@@ -35,36 +51,40 @@ class SatOPApplication:
 
         self.event_manager = SatOPEventManager()
 
-        data_dir = config.get_root_data_folder()
-        if not data_dir.exists():
-            logging.info(f'Creating data directory {data_dir}')
-            data_dir.mkdir(parents=True)
+        self.__data_root = config.get_root_data_folder()
+        if not self.data_root.exists():
+            logging.info(f'Creating data directory {self.data_root}')
+            self.data_root.mkdir(parents=True)
         
         git_hash = self.get_git_head()
         version_suffix = '-' + git_hash if git_hash else ''
 
         application_title = 'SatOP Platform'
         version = importlib.metadata.version('satop_platform') + version_suffix
+        self.__version = version
 
-        self.components = SatOPComponents(
-            api = {
-                'title': application_title,
-                'version': version
-                }
-        )
+
+        self.auth = PlatformAuthorization()
+        self.api = APIApplication(self, title = application_title, version = version)
+        self.syslog = Syslog(self)
+        self.gs = GroundstationConnector(self)
+
         self.logger.info(f'Initialized platform application {application_title} v{version}')
-        routes.load_routes(self.components)
+        routes.load_routes(self)
+
+        self.plugin_engine = SatopPluginEngine(self)
+        self.plugin_engine.load_plugins()
     
     def run(self):
-        run_engine(self.components, self.event_manager)
+        self.event_manager.publish('satop.startup', None)
 
         try:
-            asyncio.run(self.components.api.run_server())
+            asyncio.run(self.api.run_server())
         except KeyboardInterrupt:
             self.logger.warning('Keyboard interrupt')
         finally:
             self.logger.info('Shutting down')
-            stop_engine(self.event_manager)
+            self.event_manager.publish('satop.shutdown', None)
 
     def get_git_head(self):
         this_dir = os.path.dirname(os.path.realpath(__file__)) 

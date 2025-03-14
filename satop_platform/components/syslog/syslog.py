@@ -17,7 +17,7 @@ from satop_platform.components.syslog import models
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from satop_platform.core.component_initializer import SatOPComponents
+    from satop_platform.core.satop_application import SatOPApplication
 
 ARTIFACT_DIR = config.get_root_data_folder() / 'artifact_data'
 
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class Syslog:
     db: Engine
-    def __init__(self, components: SatOPComponents):
+    def __init__(self, app: SatOPApplication):
         logger.info('Setting up system logger')
 
         engine_path = config.get_root_data_folder() / 'database/artifacts.db'
@@ -100,7 +100,7 @@ class Syslog:
                 return session.exec(statement).all()
 
 
-        components.api.include_router(router)
+        app.api.include_router(router)
 
     def log_event(self, event: models.Event):
         # TODO: check that the subjects and objects exists (user, system, artifact)
