@@ -2,6 +2,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
+import datetime
 
 from satop_platform.components.authorization.auth import ProviderDictItem
 
@@ -146,5 +147,44 @@ E.g. a user identified by their email address can afterwards be authenticated by
         return {
             "request.state": request.state._state
         }
+
+    # TODO: Add Refresh Token to scope or somewhere else we can store it
+    # TODO: Update access token refresher \/
+    """
+    @auth_router.get('/refresh_token')
+    async def get_new_access_token(token_details:dict = Depends(...))
+        expiry_timestamp = token_details['exp']
+
+        if datetime.fromtimestamp(expiry_timestamp) > datetime.now():
+            new_access_token = create_access_token(
+                user_data=token_details['user']
+            )
+
+            return JSONResponse(content={
+                "access_token": new_access_token
+            })
+        
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, details="Invalid Or Expired Token")
+    """
+
+    @auth_router.get('/refresh_token')
+    async def refresh_access_token(request: Request):
+        """Refresh access token using a valid refresh token"""
+        """
+        try:
+            token = request
+        
+        if not user_data:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+            
+        new_access_token = create_access_token()
+
+        new_refresh_token = create_refresh_token()
+
+        return JSONResponse(content={
+        "access_token": new_access_token, 
+        "refresh_token": new_refresh_token
+        }) 
+        """
 
     api_app.include_router(auth_router)
