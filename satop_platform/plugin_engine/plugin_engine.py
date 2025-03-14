@@ -48,15 +48,6 @@ class SatopPluginEngine:
         self._load_order = dict()
         self._registered_plugin_methods = dict()
         self.app = app
-
-        self._discover_plugins()
-        self._install_requirements()
-        self._resolve_dependencies()
-        self._load_plugins()
-        target_graphs = self._graph_targets()
-
-        for root, targets in target_graphs.items():
-            self.app.event_manager.subscribe(root, execute_target_callback(targets))
         
         logger.debug(self.app.event_manager.subscriptions)
     
@@ -69,7 +60,7 @@ class SatopPluginEngine:
     def _get_capabilities(self, plugin_name):
         return self._plugins.get(plugin_name, {}).get('config', {}).get('capabilities', [])
 
-    def _discover_plugins(self):
+    def _discover_plugins(self, force_rediscover = False):
         '''
         Expects plugins to be located in the plugins directory
 
@@ -81,9 +72,16 @@ class SatopPluginEngine:
         file_path = os.path.dirname(os.path.realpath(__file__))
         default_plugins = Path(os.path.join(file_path, '../..', 'satop_plugins'))
         user_plugins = satop_platform.core.config.get_root_data_folder()/'plugins'
-        
-        sys.path.append(default_plugins.as_posix())
-        sys.path.append(user_plugins.as_posix())
+
+        if self._plugins and not force_rediscover:
+            return
+
+        self._plugins = dict()
+
+        if default_plugins.as_posix() not in sys.path:
+            sys.path.append(default_plugins.as_posix())
+        if user_plugins.as_posix() not in sys.path:
+            sys.path.append(user_plugins.as_posix())
 
         plugin_paths:list[Path] = []
         for plugin_path in chain(default_plugins.glob('*/'), user_plugins.glob('*/')):
@@ -144,11 +142,11 @@ class SatopPluginEngine:
         '''
         Check for requirements defined in each plugin's config.yaml and install
         '''
-        all_requirements = []
+        all_requirements = set()
         for plugin_info in self._plugins.values():
-            reqs = plugin_info.config.get('requirements', [])
-            all_requirements.extend(reqs)
-        
+            reqs = set(plugin_info.config.get('requirements', []))
+            all_requirements = all_requirements | reqs
+
         for req in all_requirements:
             try:    
                 logger.info(f"Installing requirements: {all_requirements}")
@@ -384,8 +382,18 @@ class SatopPluginEngine:
     def get_registered_plugin_methods(self):
         return self._registered_plugin_methods
     
-    def startup(self):
-        self.app.event_manager.publish('satop.startup', None)
+    def install_requirements(self):
+        self._discover_plugins()
+        self._install_requirements()
+
+    def load_plugins(self):
+        self._discover_plugins()
+        self._resolve_dependencies()
+        self._load_plugins()
+        target_graphs = self._graph_targets()
+
+        for root, targets in target_graphs.items():
+            self.app.event_manager.subscribe(root, execute_target_callback(targets))
         
 
 def execute_target(graph, target_root):
