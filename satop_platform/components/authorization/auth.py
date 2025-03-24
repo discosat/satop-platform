@@ -54,7 +54,7 @@ router = APIRouter(prefix='/tokens', tags=['Token Authorization'])
 #pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def decode_token(token):
-    return jwt.decode(token)
+    return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
