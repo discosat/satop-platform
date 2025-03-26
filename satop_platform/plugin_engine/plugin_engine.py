@@ -197,7 +197,6 @@ class SatopPluginEngine:
 
                 # Store the plugin instance before initialization
                 plugin_info.instance = plugin_instance
-                logger.debug(f"Loaded plugin: {plugin_name}")
 
                 # Set the API router, if any
                 caps = config.get("capabilities", [])
