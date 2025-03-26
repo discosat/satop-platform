@@ -45,6 +45,7 @@ class Plugin:
         
         self.platform_auth = app.auth
         self.gs_connector = app.gs
+        self.sys_log = app.syslog
 
         self.logger = logging.getLogger(__name__ + '.' + self.name)
 
