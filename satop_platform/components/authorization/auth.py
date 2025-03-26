@@ -84,9 +84,15 @@ async def verify_token(token: str):
 def validate_token(token:str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
+        username: str = payload.get('sub')
         if username is None:
             raise exceptions.InvalidToken()
+        
+        # TODO - Make it fail if token is expired the below does not work for that
+        #exp_time = payload.get('exp')
+        #if exp_time < datetime.now(timezone.utc):
+        #    raise exceptions.ExpiredToken()
+
         return payload
     except jwt.ExpiredSignatureError:
         raise exceptions.ExpiredToken()
@@ -178,6 +184,14 @@ class PlatformAuthorization:
             'typ': typ
         }
         return create_refresh_token(data, expires_delta=expires_delta)
+    
+    def validate_tokens(self, token: str):
+        try:
+            return validate_token(token)
+        except jwt.ExpiredSignatureError:
+            raise exceptions.ExpiredToken()
+        except jwt.InvalidTokenError:
+            raise exceptions.InvalidToken()
 
     def require_login(self, credentials: Annotated[HTTPAuthorizationCredentials|None, Depends(auth_scheme)], request: Request):
         if credentials is None:

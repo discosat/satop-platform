@@ -100,5 +100,11 @@ class Plugin:
 
 
 class AuthenticationProviderPlugin(Plugin):
-    def create_auth_token(self, user_id: str):
+    def create_auth_token(self, user_id: str = "", uuid: str = ""):
         self.logger.warning('create_auth_token has not been initialized.')
+
+    def create_refresh_token(self, user_id: str = "", uuid: str = ""):
+        self.logger.warning('create_refresh_token has not been initialized')
+
+    def validate_token(self, token: str):
+        self.logger.warning('validate_token has not been initialized')
