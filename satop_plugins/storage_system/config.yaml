@@ -1,0 +1,11 @@
+name: Storage System
+requirements: [requests]
+capabilities:
+  - http.add_routes
+targets:
+  startup:
+    function: startup
+    after: satop.startup
+  shutdown:
+    function: shutdown
+    after: satop.shutdown

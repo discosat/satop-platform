@@ -1,0 +1,1 @@
+from .storage_plugin import StoragePlugin as PluginClass
