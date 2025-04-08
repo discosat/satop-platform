@@ -30,7 +30,7 @@ class StoragePlugin(Plugin):
             try:
                 #Change the URL to your storage system's endpoint
                 #This is just a placeholder
-                response = requests.get("http://localhost:8080/api/images", headers=headers)
+                response = requests.get("http://localhost:8080/api/search-images", headers=headers)
                 response.raise_for_status()
                 return response.json()
             except requests.RequestException as e:

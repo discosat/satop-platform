@@ -5,7 +5,9 @@ capabilities:
 targets:
   startup:
     function: startup
-    after: satop.startup
+    after:
+      - satop.startup
   shutdown:
     function: shutdown
-    after: satop.shutdown
+    after:
+      - satop.shutdown
