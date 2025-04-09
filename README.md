@@ -293,7 +293,7 @@ When starting work on one of the missing features, first create a new issue on G
 - [ ] Protect neccessary routes
 - [ ] Bootstrapping first-user creation when these routes are protected
 - [ ] Entity modification and management
-- [ ] Be able to refresh/renew tokens
+- [x] Be able to refresh/renew tokens
 - [ ] Standardize scopes and their naming scheme, 
 - [ ] Add a way for components and plugins to specify which scopes they add to the system to enable easier user creation. 
 - [ ] Scopes should be hierarchical, so e.g. a user with the "admin" scope would be authorized for routes requiring "admin.user_create".
