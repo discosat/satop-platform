@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 #from passlib.context import CryptContext
 
 SECRET_KEY = "INSERT_SECRET_KEY_HERE"
-REFRESH_SECRET_KEY = "INSERT_REFRESH_SECRET_KEY_HERE"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 1
@@ -73,7 +72,7 @@ def create_refresh_token(data: dict, expires_delta: timedelta | None = None):
     else:
         expire = datetime.now(timezone.utc) + timedelta(days=1)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, REFRESH_SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
 @router.get("/verify-token/{token}")
@@ -84,20 +83,20 @@ async def verify_token(token: str):
 def validate_token(token:str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get('sub')
+        username = payload.get('sub')
         if username is None:
             raise exceptions.InvalidToken()
         
         # TODO - Make it fail if token is expired the below does not work for that
-        #exp_time = payload.get('exp')
-        #if exp_time < datetime.now(timezone.utc):
-        #    raise exceptions.ExpiredToken()
+        exp_time = payload.get('exp')
+        if datetime.fromtimestamp(exp_time, timezone.utc) < datetime.now(timezone.utc):
+            raise exceptions.ExpiredToken()
 
         return payload
     except jwt.ExpiredSignatureError:
         raise exceptions.ExpiredToken()
     except jwt.InvalidTokenError:
-        if os.environ['SATOP_ENABLE_TEST_AUTH']:
+        if os.environ.get('SATOP_ENABLE_TEST_AUTH'):
             split = token.split(';')
             name = split[0]
             scopes = list() if len(split) == 1 else split[1].split(',')
