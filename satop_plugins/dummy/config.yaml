@@ -1,5 +1,5 @@
 name: Dummy
-requirements: []
+requirements: ["httpx"]
 dependencies: []
 capabilities: 
   - http.add_routes

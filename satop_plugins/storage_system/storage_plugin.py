@@ -1,8 +1,9 @@
 import os
 import logging
 import requests
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, File, UploadFile
 from satop_platform.plugin_engine.plugin import Plugin
+import httpx
 
 logger = logging.getLogger("plugin.storage")
 
@@ -36,6 +37,33 @@ class StoragePlugin(Plugin):
             except requests.RequestException as e:
                 logger.error(f"Error contacting storage system: {e}")
                 raise HTTPException(status_code=500, detail="Storage system unavailable")
+
+
+        @self.api_router.post(
+            "/measurement",
+            summary="Uploads a measurement file related to specified observation request",
+            description="Calls DIM to upload file to be persisted and related to a certain request",
+            response_description="Id of uploaded measurement"
+
+        )
+        async def post_measurement(requestid: int ,file: UploadFile):
+            headers = {}
+            # if "authorization" in request.headers:
+            #     headers["Authorization"] = request.headers["authorization"]
+            try:
+
+                async with httpx.AsyncClient() as client:
+                    # Stream the file content directly
+                    response = await client.post(
+                        "http://localhost:8080/file",
+                        files={"file": (file.filename, file.file, file.content_type)}, data={"requestId": requestid}
+                    )
+                    return response.json()
+                # response = requests.post("http://localhost:8080/file", files={"file": file}, headers={"Content-Type": "multipart/form-data"})
+            except requests.RequestException as e:
+                logger.error(f"Error contacting storage system: {e}")
+                raise HTTPException(status_code=500, detail="Storage system unavailable")
+
 
     def startup(self):
         super().startup()
