@@ -117,8 +117,10 @@ pip install --editable .
 It can then be started with
 
 ```sh
-python -m satop_platform [-vv]
+python -m satop_platform [-vv] [--install-plugin-requirements]
 ```
+
+Note that the `--install-plugin-requirements` flag will install any requirements specified in the plugins' `config.yaml` files. This flag is only necessary if its the first time the satop platform will be running or if there's an update to a plugins requirements.
 
 ## Plugin development
 
