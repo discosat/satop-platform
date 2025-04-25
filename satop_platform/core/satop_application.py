@@ -73,7 +73,6 @@ class SatOPApplication:
         routes.load_routes(self)
 
         self.plugin_engine = SatopPluginEngine(self)
-        self.plugin_engine.load_plugins()
     
     def run(self):
         self.event_manager.publish('satop.startup', None)

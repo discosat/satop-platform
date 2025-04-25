@@ -18,6 +18,8 @@ def main():
     if args.install_plugin_requirements:
         application.plugin_engine.install_requirements()
 
+    application.plugin_engine.load_plugins()
+
     application.run()
 
 if __name__ == '__main__':
