@@ -1,0 +1,29 @@
+{
+    "name": "commands",
+    "body": [
+        {
+            "name": "repeat-n",
+            "count": 10,
+            "body": [
+                {
+                    "name": "gpio-write",
+                    "pin": 16,
+                    "value": 1
+                },
+                {
+                    "name": "wait-sec",
+                    "duration": 1
+                },
+                {
+                    "name": "gpio-write",
+                    "pin": 16,
+                    "value": 0
+                },
+                {
+                    "name": "wait-sec",
+                    "duration": 1
+                }
+            ]
+        }
+    ]
+}
