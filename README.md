@@ -7,6 +7,17 @@ The plugin interface enables easy integration with existing systems and creation
 
 It has initially been developed as a research and development project at Aarhus University in fall of 2024 by [Aleksander Nicklas Nikolajsen](https://github.com/Nikolasjen) and [Tobias Frejo Rasmussen](https://github.com/tobiasfrejo) in collaboration with DISCO, with the intention of being used for the operations of DISCO-2.
 
+## Docker
+
+The platform can be run with docker compose. 
+
+```sh
+cd docker
+docker compose run all_plugins
+```
+
+TODO: Create devcontainer for platform/plugin development.
+
 ## Requirements
 The platform requires Python 3.10 or later to run. Install from [python.org](https://www.python.org/downloads/) or if using Linux, your distribution's package repository.
 

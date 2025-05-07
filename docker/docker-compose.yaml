@@ -5,4 +5,10 @@ services:
       - 7889:7889
     volumes:
       - ./data:/satop/data
-    command: -vv
+  
+  all_plugins:
+    extends: platform
+    volumes:
+      - ../satop_plugins:/satop/data/plugins
+    command: --install-plugin-requirements
+    
