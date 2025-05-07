@@ -1,0 +1,10 @@
+name: Compiler
+requirements: [networkx, pydantic, git+https://github.com/discosat/proc-comp.git]
+dependencies: []
+capabilities: 
+  - http.add_routes
+
+targets:
+  startup:
+  shutdown:
+  
