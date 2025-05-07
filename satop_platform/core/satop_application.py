@@ -93,3 +93,6 @@ class SatOPApplication:
         except subprocess.CalledProcessError:
             logging.warning(f'Cannot get git HEAD id; Not in a git repository: {this_dir}')
             return None
+        except FileNotFoundError:
+            logging.debug(f"Git is not installed. Can't get project HEAD")
+            return None
