@@ -117,8 +117,10 @@ pip install --editable .
 It can then be started with
 
 ```sh
-python -m satop_platform [-vv]
+python -m satop_platform [-vv] [--install-plugin-requirements]
 ```
+
+Note that the `--install-plugin-requirements` flag will install any requirements specified in the plugins' `config.yaml` files. This flag is only necessary if its the first time the satop platform will be running or if there's an update to a plugins requirements.
 
 ## Plugin development
 
@@ -293,7 +295,7 @@ When starting work on one of the missing features, first create a new issue on G
 - [ ] Protect neccessary routes
 - [ ] Bootstrapping first-user creation when these routes are protected
 - [ ] Entity modification and management
-- [ ] Be able to refresh/renew tokens
+- [x] Be able to refresh/renew tokens
 - [ ] Standardize scopes and their naming scheme, 
 - [ ] Add a way for components and plugins to specify which scopes they add to the system to enable easier user creation. 
 - [ ] Scopes should be hierarchical, so e.g. a user with the "admin" scope would be authorized for routes requiring "admin.user_create".

@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 #from passlib.context import CryptContext
 
 SECRET_KEY = "INSERT_SECRET_KEY_HERE"
-REFRESH_SECRET_KEY = "INSERT_REFRESH_SECRET_KEY_HERE"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 1
@@ -39,16 +38,22 @@ auth_scheme = HTTPBearer(
 )
 
 # Missing:
-# - Token scopes (User Scopes)
-# - Match Authentication Plugin Token with User, so different plugins can be used for different users (Depends() function?)
-# - Make sure Token can decode (So we can validate it)
+# - Token scopes (User Scopes) (Dependency called in auth_scope)
+# - Match Authentication Plugin Token with User, so different plugins can be used for different users (Depends() function?) Already Done in satop_plugins' password_authentication_provider.py - Done
+# - Make sure Token can decode (So we can validate it) - Done
+# - Make Token Reneval (Update Access Token) (If new access token hasent been requested in 15 minutes, user has to log in again)
+# - Make Token Reneval (Update Refresh Token) (Get logged out after 1 day of not using the platform/Stay logged in for 1 day after last use (unless logged out))
+# - Make User
+# - Make User Scopes
+# - Make possible to add new Scopes to User
+# - Make possible to remove Scopes from User
 
 router = APIRouter(prefix='/tokens', tags=['Token Authorization'])
 
 #pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def decode_token(token):
-    return jwt.decode(token)
+    return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
@@ -67,7 +72,7 @@ def create_refresh_token(data: dict, expires_delta: timedelta | None = None):
     else:
         expire = datetime.now(timezone.utc) + timedelta(days=1)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, REFRESH_SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
 @router.get("/verify-token/{token}")
@@ -78,14 +83,20 @@ async def verify_token(token: str):
 def validate_token(token:str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
+        username = payload.get('sub')
         if username is None:
             raise exceptions.InvalidToken()
+        
+        # TODO - Make it fail if token is expired the below does not work for that
+        exp_time = payload.get('exp')
+        if datetime.fromtimestamp(exp_time, timezone.utc) < datetime.now(timezone.utc):
+            raise exceptions.ExpiredToken()
+
         return payload
     except jwt.ExpiredSignatureError:
         raise exceptions.ExpiredToken()
     except jwt.InvalidTokenError:
-        if os.environ['SATOP_ENABLE_TEST_AUTH']:
+        if os.environ.get('SATOP_ENABLE_TEST_AUTH'):
             split = token.split(';')
             name = split[0]
             scopes = list() if len(split) == 1 else split[1].split(',')
@@ -108,6 +119,21 @@ async def get_user(token: Annotated[str, Depends(auth_scheme)]):
 
 from . import models
 
+# Checks what scopes the user needs to access something, and checks if the user has them
+def auth_scope(needed_scopes: Iterable[str] | str):
+    def f(credentials: Annotated[HTTPAuthorizationCredentials, Depends(auth_scheme)]):
+        token = credentials.credentials
+        print(token)
+        # Validate Token
+        payload = validate_token(token)
+        token_scopes = set(payload.get("scopes", [])) # TODO: fetch user/token scopes (Make a set of scopes from the token that the user (uuid) has access to)
+        if (isinstance(needed_scopes, str) and needed_scopes in token_scopes) \
+            or (set(needed_scopes).issubset(token_scopes)):
+            return True
+        
+        raise exceptions.InsufficientPermissions()
+    return f
+
 @dataclass
 class ProviderDictItem:
     identity_hint: str | None = None
@@ -115,6 +141,7 @@ class ProviderDictItem:
 class PlatformAuthorization:
     providers: dict[str, ProviderDictItem]
     engine: Engine
+    used_scopes: set
 
     def __init__(self):
         self.providers = dict()
@@ -124,6 +151,7 @@ class PlatformAuthorization:
         engine_url = 'sqlite:///'+str(engine_path)
         self.engine = sqlmodel.create_engine(engine_url)
         SQLModel.metadata.create_all(self.engine, [models.Entity.__table__, models.AuthenticationIdentifiers.__table__])
+        self.used_scopes = set()
 
     def register_provider(self, provider_key: str, identity_hint: str|None = None):
         if provider_key in self.providers:
@@ -149,6 +177,21 @@ class PlatformAuthorization:
         }
         return create_access_token(data, expires_delta=expires_delta)
     
+    def create_refresh_token(self, uuid: uuid.UUID, typ = 'refresh', expires_delta: timedelta | None = None):
+        data = {
+            'sub': str(uuid),
+            'typ': typ
+        }
+        return create_refresh_token(data, expires_delta=expires_delta)
+    
+    def validate_tokens(self, token: str):
+        try:
+            return validate_token(token)
+        except jwt.ExpiredSignatureError:
+            raise exceptions.ExpiredToken()
+        except jwt.InvalidTokenError:
+            raise exceptions.InvalidToken()
+
     def require_login(self, credentials: Annotated[HTTPAuthorizationCredentials|None, Depends(auth_scheme)], request: Request):
         if credentials is None:
             raise exceptions.MissingCredentials
@@ -164,6 +207,11 @@ class PlatformAuthorization:
         return payload
 
     def require_scope(self, needed_scopes: Iterable[str] | str):
+        if isinstance(needed_scopes, str):
+            self.used_scopes.add(needed_scopes)
+        elif isinstance(needed_scopes, Iterable):
+            self.used_scopes |= set(needed_scopes)
+
         def f(token_payload: Annotated[dict, Depends(self.require_login)], request: Request):
             with sqlmodel.Session(self.engine) as session:
                 validated_scopes = token_payload.get('test_scopes')

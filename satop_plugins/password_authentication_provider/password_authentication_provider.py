@@ -24,7 +24,8 @@ class PasswordCredentials(BaseModel):
     password: str
 
 class Token(BaseModel):
-    token: str
+    access_token: str
+    refresh_token: str
 
 class PasswordUser(BaseModel):
     email: str
@@ -58,7 +59,7 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
 
         @self.api_router.post('/token',
                               response_model=Token,
-                              summary='Request an access token.',
+                              summary='Request an access and refresh token.',
                               description='Obtain a new access token by providing valid user credentials (email and password).',
                               response_description='A fresh JWT token.',
                               responses= {
@@ -66,9 +67,34 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
                               })
         async def __create_token(credentials: PasswordCredentials):
             if self.validate(credentials.email, credentials.password):
-                return Token(token = self.create_auth_token(credentials.email))
+                return Token(access_token = self.create_auth_token(user_id=credentials.email),
+                             refresh_token = self.create_refresh_token(user_id=credentials.email))
             
             raise exceptions.InvalidCredentials
+
+        @self.api_router.post(
+                "/refresh_tokens",
+                response_model=Token,
+                summary="Refresh access token and refresh token",
+                description="Obtain a new access token and refresh token using a valid refresh token.",
+                response_description="Returns a new access token and refresh token."
+        )
+        async def __refresh_access_token(refresh_token: str):
+            # Validate token is correct and not expired
+            try:
+                payload = self.validate_token(refresh_token)
+                if not payload:
+                    raise exceptions.InvalidToken("Invalid refresh token.")
+                
+                uuid = payload.get('sub')
+                if not uuid:
+                    raise exceptions.InvalidUser("Invalid refresh token payload.")
+                
+                return Token(access_token = self.create_auth_token(uuid=uuid), refresh_token = self.create_refresh_token(uuid=uuid))
+            except exceptions.InvalidCredentials as e:
+                logger.error(f"Token refresh has failed: {e}")
+                raise
+
 
         @self.api_router.post('/user',
                               status_code=status.HTTP_201_CREATED,
