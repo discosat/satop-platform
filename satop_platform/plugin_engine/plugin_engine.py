@@ -84,6 +84,21 @@ class SatopPluginEngine:
         if user_plugins.as_posix() not in sys.path:
             sys.path.append(user_plugins.as_posix())
 
+        disabled_plugins = []
+        if (user_plugins / "disabled.txt").exists():
+            logger.debug('Loading disabled plugins')
+            with open(user_plugins / "disabled.txt", 'r') as f:
+                lines = f.readlines()
+                for l in lines:
+                    ls = l.strip()
+                    if len(ls) == 0 or ls[0] == '#':
+                        continue
+                    disabled_plugins.append(ls)
+        else:
+            logger.debug('No disabled.txt file found')
+        if disabled_plugins:
+            logger.debug(f'Disabled plugins: {disabled_plugins}')
+
         plugin_paths: list[Path] = []
         for plugin_path in chain(default_plugins.glob("*/"), user_plugins.glob("*/")):
             plugin_paths.append(plugin_path.absolute())
@@ -96,6 +111,10 @@ class SatopPluginEngine:
                         config = yaml.safe_load(f)
                     assert "name" in config
                     plugin_name = config.get("name")
+
+                    if plugin_path.parts[-1] in disabled_plugins or plugin_name in disabled_plugins:
+                        logger.info(f'Plugin {plugin_name} found but has been disabled and will not be loaded')
+                        continue
 
                     self._plugins[plugin_name] = PluginDictItem(
                         config, plugin_path.as_posix(), plugin_path.name
@@ -153,9 +172,9 @@ class SatopPluginEngine:
                     logger.warning(
                         f"Git requirement '{req}' will be upgraded to latest version"
                     )
-                    subprocess.check_call(["pip", "install", "--upgrade", req])
+                    subprocess.check_call(["pip", "install", "--user", "--upgrade", req])
                 else:
-                    subprocess.check_call(["pip", "install", req])
+                    subprocess.check_call(["pip", "install", "--user", req])
                 logger.info("Successfully installed all requirements.")
             except subprocess.CalledProcessError as e:
                 logger.error(f"Failed to install requirements: {e}")

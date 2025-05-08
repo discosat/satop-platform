@@ -1,0 +1,7 @@
+# List of plugins that will not be loaded into the platform. 
+# Lines starting with '#' are comments
+# Only works if the file exists in the user plugin directory 
+# or in the Docker container with this plugin folder mounted
+
+dummy
+dummy_depender
