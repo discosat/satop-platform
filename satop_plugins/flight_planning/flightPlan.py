@@ -6,6 +6,13 @@ class FlightPlan(BaseModel):
     datetime: str
     gs_id: str
     sat_name: str
+
+    def validate_datetime_format(self):
+        # Convert datetime string to datetime object
+        try:
+            self.datetime = datetime.fromisoformat(self.datetime)
+        except ValueError:
+            raise ValueError("Invalid datetime format. Expected ISO format.")
     
     model_config = {
         "json_schema_extra": {
