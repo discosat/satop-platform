@@ -164,9 +164,7 @@ class StorageDatabase:
         c.execute(f"SELECT * FROM approval WHERE id = '{flight_plan_uuid}'")
         approval = c.fetchone()
         if approval:
-            print("---")
-            print(approval)
-            print("---")
+            # TODO: Log that the approval was found or something.
             return FlightPlanStatus(
                 flight_plan_uuid=approval[0],
                 approval_status=approval[2],
@@ -310,119 +308,120 @@ class StorageDatabase:
 
 
 
+# ########
+# TODO: Maybe make some Postman tests instead of this
+# ########
 
+    # async def __test_database(self, logger: logging.Logger):
+    #     """Test all aspects of the database and clean up afterwards"""
 
-
-    async def __test_database(self, logger: logging.Logger):
-        """Test all aspects of the database and clean up afterwards"""
-
-        # Test the creation of the flight_plans table
-        await self.create_flight_plans_table()
-        assert await self.check_table_exists('flight_plans')
-        logger.debug("Table flight_plans exists")
+    #     # Test the creation of the flight_plans table
+    #     await self.create_flight_plans_table()
+    #     assert await self.check_table_exists('flight_plans')
+    #     logger.debug("Table flight_plans exists")
         
-        # Test the creation of the approval table
-        await self.create_approval_table()
-        assert await self.check_table_exists('approval')
-        logger.debug("Table approval exists")
+    #     # Test the creation of the approval table
+    #     await self.create_approval_table()
+    #     assert await self.check_table_exists('approval')
+    #     logger.debug("Table approval exists")
 
-        # Test saving a flight plan
-        flight_plan = FlightPlan(
-            flight_plan={
-                "name": "commands",
-                "body": [
-                    {
-                        "name": "repeat-n",
-                        "count": 10,
-                        "body": [
-                            {
-                                "name": "gpio-write",
-                                "pin": 16,
-                                "value": 1
-                            },
-                            {
-                                "name": "wait-sec",
-                                "duration": 1
-                            },
-                            {
-                                "name": "gpio-write",
-                                "pin": 16,
-                                "value": 0
-                            },
-                            {
-                                "name": "wait-sec",
-                                "duration": 1
-                            }
-                        ]
-                    }
-                ]
-            },
-            datetime="2025-01-01T12:12:30+01:00",
-            gs_id="86c8a92b-571a-46cb-b306-e9be71959279",
-            sat_name="DISCO-2"
-        )
-        await self.save_flight_plan(flight_plan, "test_flight_plan")
-        assert await self.get_flight_plan("test_flight_plan") == flight_plan
-        logger.debug("Flight plan saved")
+    #     # Test saving a flight plan
+    #     flight_plan = FlightPlan(
+    #         flight_plan={
+    #             "name": "commands",
+    #             "body": [
+    #                 {
+    #                     "name": "repeat-n",
+    #                     "count": 10,
+    #                     "body": [
+    #                         {
+    #                             "name": "gpio-write",
+    #                             "pin": 16,
+    #                             "value": 1
+    #                         },
+    #                         {
+    #                             "name": "wait-sec",
+    #                             "duration": 1
+    #                         },
+    #                         {
+    #                             "name": "gpio-write",
+    #                             "pin": 16,
+    #                             "value": 0
+    #                         },
+    #                         {
+    #                             "name": "wait-sec",
+    #                             "duration": 1
+    #                         }
+    #                     ]
+    #                 }
+    #             ]
+    #         },
+    #         datetime="2025-01-01T12:12:30+01:00",
+    #         gs_id="86c8a92b-571a-46cb-b306-e9be71959279",
+    #         sat_name="DISCO-2"
+    #     )
+    #     await self.save_flight_plan(flight_plan, "test_flight_plan")
+    #     assert await self.get_flight_plan("test_flight_plan") == flight_plan
+    #     logger.debug("Flight plan saved")
 
-        # Test saving an approval
-        await self.save_approval("test_flight_plan", "test_user")
-        assert await self.get_approval_index("test_flight_plan") == FlightPlanStatus(
-            flight_plan_uuid="test_flight_plan",
-            approval_status=None,
-            approver="test_user",
-            approval_date=None
-        )
+    #     # Test saving an approval
+    #     await self.save_approval("test_flight_plan", "test_user")
+    #     assert await self.get_approval_index("test_flight_plan") == FlightPlanStatus(
+    #         flight_plan_uuid="test_flight_plan",
+    #         approval_status=None,
+    #         approver="test_user",
+    #         approval_date=None
+    #     )
         
-        # Test updating an approval
-        await self.update_approval("test_flight_plan", True)
-        assert await self.get_approval_status("test_flight_plan") == True
-        logger.debug("Approval updated")
+    #     # Test updating an approval
+    #     await self.update_approval("test_flight_plan", True)
+    #     assert await self.get_approval_status("test_flight_plan") == True
+    #     logger.debug("Approval updated")
 
-        # Test updating a flight plan
-        flight_plan = FlightPlan(
-            flight_plan={
-                "name": "commands",
-                "body": [
-                    {
-                        "name": "repeat-n",
-                        "count": 10,
-                        "body": [
-                            {
-                                "name": "gpio-write",
-                                "pin": 16,
-                                "value": 1
-                            },
-                            {
-                                "name": "wait-sec",
-                                "duration": 1
-                            },
-                            {
-                                "name": "gpio-write",
-                                "pin": 16,
-                                "value": 0
-                            },
-                            {
-                                "name": "wait-sec",
-                                "duration": 1
-                            }
-                        ]
-                    }
-                ]
-            },
-            datetime="2025-01-01T12:12:30+01:00",
-            gs_id="86c8a92b-571a-46cb-b306-e9be71959279",
-            sat_name="DISCO-2"
-        )
-        await self.update_flight_plan(flight_plan, "test_flight_plan")
-        assert await self.get_flight_plan("test_flight_plan") == flight_plan
-        logger.debug("Flight plan updated")
+    #     # Test updating a flight plan
+    #     flight_plan = FlightPlan(
+    #         flight_plan={
+    #             "name": "commands",
+    #             "body": [
+    #                 {
+    #                     "name": "repeat-n",
+    #                     "count": 10,
+    #                     "body": [
+    #                         {
+    #                             "name": "gpio-write",
+    #                             "pin": 16,
+    #                             "value": 1
+    #                         },
+    #                         {
+    #                             "name": "wait-sec",
+    #                             "duration": 1
+    #                         },
+    #                         {
+    #                             "name": "gpio-write",
+    #                             "pin": 16,
+    #                             "value": 0
+    #                         },
+    #                         {
+    #                             "name": "wait-sec",
+    #                             "duration": 1
+    #                         }
+    #                     ]
+    #                 }
+    #             ]
+    #         },
+    #         datetime="2025-01-01T12:12:30+01:00",
+    #         gs_id="86c8a92b-571a-46cb-b306-e9be71959279",
+    #         sat_name="DISCO-2"
+    #     )
+    #     await self.update_flight_plan(flight_plan, "test_flight_plan")
+    #     assert await self.get_flight_plan("test_flight_plan") == flight_plan
+    #     logger.debug("Flight plan updated")
 
-        # Clean up
-        c = self.connection.cursor()
-        c.execute("DROP TABLE flight_plans")
-        c.execute("DROP TABLE approval")
-        self.connection.commit()
-        self.close_connection()
-        os.remove(os.path.join(self.data_dir, f'DISCO_FP_DB.db'))
-        logger.debug("Test complete")
+    #     # Clean up
+    #     c = self.connection.cursor()
+    #     c.execute("DROP TABLE flight_plans")
+    #     c.execute("DROP TABLE approval")
+    #     self.connection.commit()
+    #     self.close_connection()
+    #     os.remove(os.path.join(self.data_dir, f'DISCO_FP_DB.db'))
+    #     logger.debug("Test complete")

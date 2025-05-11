@@ -34,6 +34,9 @@ class Scheduling(Plugin):
 
         self.data_base = None
 
+        # ##############################
+        # Save a flight plan
+        # ##############################
         @self.api_router.post(
                 '/save', 
                 summary="Takes a flight plan and saves it for approval.",
@@ -46,16 +49,22 @@ class Scheduling(Plugin):
             user_id = req.state.userid
 
             if flight_plan.sat_name is None or flight_plan.sat_name == "":
-                logger.info(f"User '{user_id}' sent flightplan for approval but rejected due to: FLIGHTPLAN - MISSING REFERENCE TO SATELLITE")
-                return "Rejected, Missing Satellite reference"
+                logger.info(f"User '{user_id}' sent flightplan for approval but was rejected due to: FLIGHTPLAN - MISSING REFERENCE TO SATELLITE")
+                return "Rejected: Missing Satellite reference"
             
             if flight_plan.datetime is None or flight_plan.datetime == "":
-                logger.info(f"User '{user_id}' sent flightplan for approval but rejected due to: FLIGHTPLAN - MISSING DATETIME")
-                return "Rejected, Missing datetime"
+                logger.info(f"User '{user_id}' sent flightplan for approval but was rejected due to: FLIGHTPLAN - MISSING DATETIME")
+                return "Rejected: Missing datetime"
+            # Check datetime format
+            try:
+                flight_plan.validate_datetime_format()
+            except ValueError as e:
+                logger.info(f"User '{user_id}' sent flightplan for approval but was rejected due to: FLIGHTPLAN - INVALID DATETIME FORMAT")
+                return f"Rejected: {e}"
             
             if flight_plan.gs_id is None or flight_plan.gs_id == "":
-                logger.info(f"User '{user_id}' sent flightplan for approval but rejected due to: FLIGHTPLAN - MISSING REFERENCE TO GS ID")
-                return "Rejected, Missing GS ID"
+                logger.info(f"User '{user_id}' sent flightplan for approval but was rejected due to: FLIGHTPLAN - MISSING REFERENCE TO GS ID")
+                return "Rejected: Missing GS ID"
 
             # LOGGING: User saves flight plan - user action and flight plan artifact
 
@@ -71,13 +80,13 @@ class Scheduling(Plugin):
 
             # -- actual scheduling --
             
-            flight_plan_uuid = artifact_in_id
+            flight_plan_uuid = artifact_in_id # TODO: For now I will keep it as is, but I am still not settled on the choice of UUID.
     
-            # Save flight plan as a json file in the data directory
+            # Save flight plan in the database
             save_fp_message: str | None = await self.__save_flight_plan(flight_plan=flight_plan, flight_plan_uuid=flight_plan_uuid, user_id=user_id)
             save_ap_message: str | None = await self.__save_approval(flight_plan_uuid, user_id)
             if save_fp_message or save_ap_message:
-                save_message = f"Flight plan not saved: {save_fp_message}; {save_ap_message}"
+                save_message = f"Flight plan not saved due to '{save_fp_message}' and '{save_ap_message}'"
                 return {
                 "message": save_message
             }
@@ -106,7 +115,9 @@ class Scheduling(Plugin):
                 "fp_id": f"{flight_plan_uuid}"
             }
           
-
+        # ##############################
+        # Get a flight plan based on its ID
+        # ##############################
         @self.api_router.get(
                 '/get/{uuid}',
                 summary="Get a flight plan",
@@ -118,6 +129,9 @@ class Scheduling(Plugin):
         async def get_flight_plan(flight_plan_uuid:str, req: Request) -> FlightPlan:
             return await self.__get_flight_plan(flight_plan_uuid=flight_plan_uuid, user_id=req.state.userid)
         
+        # ##############################
+        # Get all flight plans
+        # ##############################
         @self.api_router.get(
                 '/get_all',
                 summary="Get all flight plans",
@@ -137,7 +151,9 @@ class Scheduling(Plugin):
             return flight_plans
 
         
-
+        # ##############################
+        # Update a flight plan
+        # ##############################
         # TODO: Go over this again as it may be implemented incorrectly (in relation to logging)
         @self.api_router.put(
                 '/update/{uuid}',
@@ -150,9 +166,8 @@ class Scheduling(Plugin):
         async def update_flight_plan(flight_plan_uuid:str, flight_plan:FlightPlan, req: Request) -> dict[str, str]:
             user_id = req.state.userid
 
+            # Check if the flight plan exist in the database
             flight_plan_with_datetime = await self.__get_flight_plan(flight_plan_uuid=flight_plan_uuid, user_id=user_id)
-
-            # Check if the flight plan exist in the data directory
             if not flight_plan_with_datetime:
                 logger.debug(f"Flight plan with uuid '{flight_plan_uuid}' was requested by user '{user_id}' but was not found")
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Flight plan not found')
@@ -169,8 +184,7 @@ class Scheduling(Plugin):
 
             # -- actual update --
 
-            # Save flight plan as a json file in the data directory
-            self.__update_flight_plan(flight_plan=flight_plan, flight_plan_uuid=flight_plan_uuid)
+            await self.__update_flight_plan(flight_plan=flight_plan, flight_plan_uuid=flight_plan_uuid)
 
             # -- end of update --
 
@@ -193,7 +207,9 @@ class Scheduling(Plugin):
 
             return {"message": "Flight plan updated"}
             
-
+        # ##############################
+        # Approve a flight plan
+        # ##############################
         @self.api_router.post(
                 '/approve/{uuid}', 
                 summary="Approve a flight plan for transmission to a ground station",
@@ -222,23 +238,13 @@ If the flight plan is approved, a message will first return to the sender acknow
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Flight plan not found or not scheduled for approval')
 
             if not _approved_flight_plan:
+                logger.debug(f"Flight plan with uuid '{flight_plan_uuid}' was requested by user '{user_id}' but was not found in the approval index")
                 pass
             elif _approved_flight_plan.approval_status:
                 logger.debug(f"""Flight plan with uuid '{flight_plan_uuid}' was approved by user: '{user_id}', 
                              but has already been approved by user: '{_approved_flight_plan.approver}' at datetime: '{_approved_flight_plan.approval_date}'""")
                 return {"message": "Flight plan already approved"}
                 
-
-            # flight_plan_uuid = UUID(flight_plan_uuid) # TODO: Not sure if it is a version thing, but a string con not be converted to a UUID directly atm. (python version 3.11.9)
-            # local_flight_plan_with_datetime:FlightPlan = self.flight_plans_missing_approval.get(flight_plan_uuid)
-            # if local_flight_plan_with_datetime is None:
-            #     logger.debug(f"Flight plan with uuid '{flight_plan_uuid}' was requested by user '{user_id}' but was not found")
-            #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Flight plan not found or not scheduled for approval')
-            
-            # flight_plan_with_datetime:FlightPlan = await self.__get_flight_plan(flight_plan_uuid=flight_plan_uuid, user_id=user_id)
-            
-            # LOGGING: User approves flight plan - user action and flight plan artifact, compiled flight plan artifact, GS id
-            # flight_plan_gs_id = UUID(flight_plan_with_datetime.gs_id)
             
             await self.__update_approval(flight_plan_uuid, user_id, approved)
             if not approved:
@@ -355,7 +361,7 @@ If the flight plan is approved, a message will first return to the sender acknow
 
 
     async def __save_flight_plan(self, flight_plan:FlightPlan, flight_plan_uuid:str, user_id:str) -> str | None:
-        """Save a flight plan as JSON to the data directory
+        """Save a flight plan in the database
 
         Args:
             flight_plan (FlightPlan): The flight plan to save
@@ -364,15 +370,15 @@ If the flight plan is approved, a message will first return to the sender acknow
         try:
             _existing_flight_plan = await self.__get_flight_plan(flight_plan_uuid, user_id=user_id)
         except HTTPException as e:
-            if e.status_code == status.HTTP_404_NOT_FOUND:
-                pass
-            else:
+            if not e.status_code == status.HTTP_404_NOT_FOUND:
+                # If the flight plan is not found, it is not an error
+                # This is to ensure no problems with __get_flight_plan()
                 raise e
         
         try:
             if _existing_flight_plan:
                 logger.debug(f"Flight plan with ID: '{flight_plan_uuid}' already exists")
-                return "Flight plan already exists"
+                return f"Flight plan already exists"
                 # raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Flight plan already exists')
             
             await self.data_base.save_flight_plan(flight_plan, flight_plan_uuid)
@@ -420,7 +426,8 @@ If the flight plan is approved, a message will first return to the sender acknow
         #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Failed to update flight plan')
         
         # TODO: Rethink how updates should occur (if a flight_plan is updated, a new one should be created and the old one should be marked as outdated or deleted instead... "Updating" is misleading as a new ID should be created every time a flight plan changes) 
-        raise NotImplementedError
+        logger.error(f"Update flight plan not implemented yet")
+        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail='Update flight plan not implemented yet')
     
 
     async def __update_approval(self, flight_plan_uuid:str, user_id:str, approved:bool) -> None:
@@ -433,6 +440,7 @@ If the flight plan is approved, a message will first return to the sender acknow
         try:
             
             _existing_approval: FlightPlanStatus | None = await self.data_base.get_approval_index(flight_plan_uuid)
+            # TODO: Either make it possible to update the approval when it has already been handled or make a DELETE method and API endpoint to remove the approval
             if not _existing_approval.approval_status == None:
                 logger.debug(f"Flight plan with ID: '{flight_plan_uuid}' has already been handled by user: '{_existing_approval.approver}'")
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'Flight plan already handled by user {_existing_approval.approver}; it was {"" if _existing_approval.approval_status else "not "}approved')
