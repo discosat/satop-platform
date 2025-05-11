@@ -9,11 +9,11 @@ It has initially been developed as a research and development project at Aarhus 
 
 ## Docker
 
-The platform can be run with docker compose. 
+The platform can be run with docker compose. For a development environment with all the plugins and debug logging:
 
 ```sh
 cd docker
-docker compose run all_plugins
+docker compose up dev
 ```
 
 TODO: Create devcontainer for platform/plugin development.
