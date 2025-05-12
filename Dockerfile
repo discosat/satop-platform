@@ -15,6 +15,8 @@ RUN chmod -R 777 /app
 RUN adduser runner
 USER runner
 
+RUN ls -al /app
+
 RUN pip install --user /app
 
 ENTRYPOINT [ "python", "-m", "satop_platform" ]

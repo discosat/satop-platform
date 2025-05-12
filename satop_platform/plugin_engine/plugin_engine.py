@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
+import site
 
 import networkx as nx
 import yaml
@@ -168,13 +169,26 @@ class SatopPluginEngine:
         for req in all_requirements:
             try:
                 logger.info(f"Installing requirements: {all_requirements}")
+                pip_install_args = ['pip', 'install']
+
                 if req.startswith("git+"):
                     logger.warning(
                         f"Git requirement '{req}' will be upgraded to latest version"
                     )
-                    subprocess.check_call(["pip", "install", "--user", "--upgrade", req])
+                    pip_install_args.append('--upgrade')
+                    # subprocess.check_call(["pip", "install", "--upgrade", req])
                 else:
-                    subprocess.check_call(["pip", "install", "--user", req])
+                    # subprocess.check_call(["pip", "install", req])
+                    pass
+                
+                is_venv = sys.prefix != sys.base_prefix
+                writeable_sitepackages = os.access(site.getsitepackages()[0], os.W_OK)
+
+                if not (is_venv or writeable_sitepackages):
+                    pip_install_args.append('--user')
+                
+                subprocess.check_call(pip_install_args + [req])
+                
                 logger.info("Successfully installed all requirements.")
             except subprocess.CalledProcessError as e:
                 logger.error(f"Failed to install requirements: {e}")

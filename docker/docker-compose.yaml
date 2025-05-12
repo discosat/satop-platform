@@ -1,7 +1,8 @@
 services:
   platform:
     build: 
-      dockerfile: ../Dockerfile
+      context: ..
+      dockerfile: ./Dockerfile
       target: deploy
     ports:
       - 7889:7889
