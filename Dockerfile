@@ -27,3 +27,4 @@ FROM base AS devel
 RUN adduser devuser
 USER devuser
 
+ENV SHELL=bash

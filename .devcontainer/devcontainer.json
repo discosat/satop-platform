@@ -1,0 +1,19 @@
+{
+    "name": "DISCO SatOP Platform",
+    "dockerComposeFile": "../docker/docker-compose.yaml",
+    "service": "devcontainer",
+    "runServices": [
+        "devcontainer"
+    ],
+    "postCreateCommand": "pip install -e /satop",
+    "shutdownAction": "stopCompose",
+    "workspaceFolder": "/satop",
+    "remoteUser": "devuser",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python"
+            ]
+        }
+    }
+}

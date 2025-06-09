@@ -30,3 +30,16 @@ services:
       - "bash"
       - "-c"
       - "pip install -e /satop && python -m satop_platform -vv --install-plugin-requirements"
+  
+  devcontainer:
+    build: 
+      dockerfile: ../Dockerfile
+      target: devel
+    ports:
+      - 7889:7889
+    volumes:
+      - ..:/satop
+      - ./data:/satop/data
+    environment:
+      - SATOP_DATA_ROOT=/satop/docker/data
+    command: ["sleep", "infinity"]
