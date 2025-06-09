@@ -55,7 +55,7 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
         # if not inspect(self.sql_engine).has_table(HashedCredentials.__tablename__):
         HashedCredentials.__table__.create(self.sql_engine, checkfirst=True)
 
-        self.api_router = APIRouter(prefix='/login', tags=['Password Authentication'])
+        self.api_router = APIRouter(prefix='/login', tags=['Authentication'])
 
         @self.api_router.post('/token',
                               response_model=Token,

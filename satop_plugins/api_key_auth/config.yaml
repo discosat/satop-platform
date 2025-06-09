@@ -1,0 +1,11 @@
+name: API Key Authentication Provider
+entrypoint: password_authentication_provider.py
+capabilities:
+  - http.add_routes
+  - security.authentication_provider
+requirements: []
+dependencies: []
+
+authentication_provider:
+  provider_key: api_key
+  identifier_hint: API key of the system

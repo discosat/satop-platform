@@ -16,7 +16,7 @@ class APIApplication:
     api_app: FastAPI
     authorization: PlatformAuthorization
 
-    _api_config: dict[str, any]
+    _api_config: SatopConfig
     _root_path: str
     _router: APIRouter
 
@@ -76,7 +76,7 @@ class APIApplication:
         host = self._api_config.get('host', host)
         port = self._api_config.get_int('port', port)
 
-        logger.debug(f"API app: {self.api_app}")
+        # logger.debug(f"API app: {self.api_app}")
         # logger.debug(f"Listing routes custom: {self.list_routes()}")
         logger.info(f'Starting server on {host}:{port}')
 
