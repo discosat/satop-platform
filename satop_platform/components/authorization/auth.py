@@ -1,35 +1,25 @@
 
 from dataclasses import dataclass
-from enum import Enum
 from typing import Annotated, Iterable
 import uuid
 import os
-from fastapi import Depends, HTTPException, APIRouter, Request
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 from sqlalchemy import Engine
 from sqlmodel import SQLModel
 import sqlmodel
-
-from ..restapi import exceptions
-
 from datetime import datetime, timedelta, timezone
 
-from pydantic import BaseModel
-
-from sqlmodel import Session
 import logging
 
 from satop_platform.core import config
+from satop_platform.components.restapi import exceptions
+from satop_platform.components.authorization import models
 
 logger = logging.getLogger(__name__)
 
-#from passlib.context import CryptContext
-
-SECRET_KEY = "INSERT_SECRET_KEY_HERE"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-REFRESH_TOKEN_EXPIRE_DAYS = 1
 
 auth_scheme = HTTPBearer(
     scheme_name='jwt_token',
@@ -47,92 +37,6 @@ auth_scheme = HTTPBearer(
 # - Make User Scopes
 # - Make possible to add new Scopes to User
 # - Make possible to remove Scopes from User
-
-router = APIRouter(prefix='/tokens', tags=['Token Authorization'])
-
-#pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-def decode_token(token):
-    return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-def create_refresh_token(data: dict, expires_delta: timedelta | None = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(days=1)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-@router.get("/verify-token/{token}")
-async def verify_token(token: str):
-    verify_token(token=token)
-    return {"message": "Token is valid"}
-
-def validate_token(token:str):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username = payload.get('sub')
-        if username is None:
-            raise exceptions.InvalidToken()
-        
-        # TODO - Make it fail if token is expired the below does not work for that
-        exp_time = payload.get('exp')
-        if datetime.fromtimestamp(exp_time, timezone.utc) < datetime.now(timezone.utc):
-            raise exceptions.ExpiredToken()
-
-        return payload
-    except jwt.ExpiredSignatureError:
-        raise exceptions.ExpiredToken()
-    except jwt.InvalidTokenError:
-        if os.environ.get('SATOP_ENABLE_TEST_AUTH'):
-            split = token.split(';')
-            name = split[0]
-            scopes = list() if len(split) == 1 else split[1].split(',')
-            payload = {
-                'sub': '00000000-7e57-4000-a000-000000000000',
-                'test_name': name,
-                'test_scopes': scopes
-            }
-            logger.warning(f'Validating test token {token}. Remove "SATOP_ENABLE_TEST_AUTH" from env to disable this. SHOULD NOT BE USED IN PRODUCTION!')
-            return payload
-        raise exceptions.InvalidToken()
-
-async def get_user(token: Annotated[str, Depends(auth_scheme)]):
-    decoded = decode_token(token)
-
-    if not decoded:
-        raise exceptions.InvalidCredentials()
-
-    return decoded
-
-from . import models
-
-# Checks what scopes the user needs to access something, and checks if the user has them
-def auth_scope(needed_scopes: Iterable[str] | str):
-    def f(credentials: Annotated[HTTPAuthorizationCredentials, Depends(auth_scheme)]):
-        token = credentials.credentials
-        print(token)
-        # Validate Token
-        payload = validate_token(token)
-        token_scopes = set(payload.get("scopes", [])) # TODO: fetch user/token scopes (Make a set of scopes from the token that the user (uuid) has access to)
-        if (isinstance(needed_scopes, str) and needed_scopes in token_scopes) \
-            or (set(needed_scopes).issubset(token_scopes)):
-            return True
-        
-        raise exceptions.InsufficientPermissions()
-    return f
 
 @dataclass
 class ProviderDictItem:
@@ -152,6 +56,65 @@ class PlatformAuthorization:
         self.engine = sqlmodel.create_engine(engine_url)
         SQLModel.metadata.create_all(self.engine, [models.Entity.__table__, models.AuthenticationIdentifiers.__table__])
         self.used_scopes = set()
+
+        secret_key_path = config.get_root_data_folder() / 'token_secret'
+        if not secret_key_path.exists():
+            logger.info('Creating new token secret')
+            new_secret = os.urandom(32)
+            with open(secret_key_path, 'wb') as f:
+                f.write(new_secret)
+                os.chmod(f.fileno(), 600)
+            self.__token_secret = new_secret
+        else:
+            with open(secret_key_path, 'rb') as f:
+                status = os.stat(f.fileno())
+                if not oct(status.st_mode)[-2:] == '00':
+                    logger.warning(f'Access to the token secret is too permissive: {oct(status.st_mode)[-3:]}. Only the owner should be able view it (600)!')
+                self.__token_secret = f.read()
+    
+    def mint_token(self, data: dict, expires_delta: timedelta | None = None):
+        required_keys = ['sub', 'typ']
+        for k in required_keys:
+            if k not in data:
+                raise ValueError(f'Cannot mint token without key "{k}"')
+        to_encode = data.copy()
+        to_encode['iat'] = datetime.now(timezone.utc)
+        if expires_delta:
+            expire = datetime.now(timezone.utc) + expires_delta
+        else:
+            expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+        to_encode.update({"exp": expire})
+        encoded_jwt = jwt.encode(to_encode, self.__token_secret, algorithm=ALGORITHM)
+        return encoded_jwt
+
+    def validate_token(self, token:str):
+        try:
+            payload = jwt.decode(token, self.__token_secret, algorithms=[ALGORITHM])
+            username = payload.get('sub')
+            if username is None:
+                raise exceptions.InvalidToken()
+            
+            # TODO - Make it fail if token is expired the below does not work for that
+            exp_time = payload.get('exp')
+            if datetime.fromtimestamp(exp_time, timezone.utc) < datetime.now(timezone.utc):
+                raise exceptions.ExpiredToken()
+
+            return payload
+        except jwt.ExpiredSignatureError:
+            raise exceptions.ExpiredToken()
+        except jwt.InvalidTokenError:
+            if os.environ.get('SATOP_ENABLE_TEST_AUTH'):
+                split = token.split(';')
+                name = split[0]
+                roles = list() if len(split) == 1 else split[1].split(',')
+                payload = {
+                    'sub': '00000000-7e57-4000-a000-000000000000',
+                    'test_name': name,
+                    'test_scopes': roles
+                }
+                logger.warning(f'Validating test token {token}. Remove "SATOP_ENABLE_TEST_AUTH" from env to disable this. SHOULD NOT BE USED IN PRODUCTION!')
+                return payload
+            raise exceptions.InvalidToken()
 
     def register_provider(self, provider_key: str, identity_hint: str|None = None):
         if provider_key in self.providers:
@@ -175,18 +138,20 @@ class PlatformAuthorization:
             'sub': str(uuid),
             'typ': typ
         }
-        return create_access_token(data, expires_delta=expires_delta)
+        return self.mint_token(data, expires_delta=expires_delta)
     
     def create_refresh_token(self, uuid: uuid.UUID, typ = 'refresh', expires_delta: timedelta | None = None):
+        if expires_delta is None:
+            expires_delta = timedelta(minutes=60)
         data = {
             'sub': str(uuid),
             'typ': typ
         }
-        return create_refresh_token(data, expires_delta=expires_delta)
+        return self.mint_token(data, expires_delta=expires_delta)
     
     def validate_tokens(self, token: str):
         try:
-            return validate_token(token)
+            return self.validate_token(token)
         except jwt.ExpiredSignatureError:
             raise exceptions.ExpiredToken()
         except jwt.InvalidTokenError:
@@ -295,3 +260,4 @@ class PlatformAuthorization:
                 raise exceptions.NotFound(f"Provider {provider_name} not found")
 
             return models.IdentityProviderDetails(provider_hint=provider.identity_hint, registered_users=entitites)
+        
