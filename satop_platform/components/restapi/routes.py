@@ -1,14 +1,12 @@
 from __future__ import annotations
-from fastapi import APIRouter, Depends, HTTPException, Request
+from uuid import UUID
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
+
 from pydantic import BaseModel
-import datetime
-
 from satop_platform.components.authorization.auth import ProviderDictItem
-
-from .restapi import APIApplication
-from . import exceptions
 from satop_platform.components.authorization import models
+from satop_platform.components.restapi import exceptions
 
 from typing import TYPE_CHECKING, Annotated
 if TYPE_CHECKING:
@@ -190,5 +188,22 @@ E.g. a user identified by their email address can afterwards be authenticated by
     @auth_router.get('/all_scopes', response_model=list[str])
     async def list_all_scopes():
         return auth.used_scopes
+    
+    @auth_router.get('/roles', response_model=dict[str,list[str]])
+    async def list_all_roles():
+        return auth.get_roles()
+
+    @auth_router.post('/roles', status_code=201)
+    async def create_new_role(role: models.NewRole):
+        return auth.create_new_role(role.name, role.scopes)
+    
+    @auth_router.put('/roles/{role_name}')
+    async def update_role(role_name: str, role: models.NewRole):
+        return auth.update_role(role_name, role.scopes)
+    
+    @auth_router.get('/check_my_roles', )
+    async def check_roles(token:dict = Depends(auth.require_login)):
+        return auth.get_entity_scopes(UUID(token.get('sub')))
+
 
     api_app.include_router(auth_router)

@@ -11,7 +11,7 @@ class EntityType(str, Enum):
 class EntityBase(SQLModel):
     name: str
     type: EntityType
-    scopes: str | None = Field(default=None) # Comma-seperated list of scopes
+    roles: str = Field(default="") # Comma-seperated list of scopes
 
     model_config = {
         "json_schema_extra": {
@@ -19,7 +19,7 @@ class EntityBase(SQLModel):
                 {
                     "name": "John Doe",
                     "type": "person",
-                    "scopes": "admin,operator"
+                    "roles": "admin,operator"
                 }
             ]
         }
@@ -53,3 +53,12 @@ class AuthenticationIdentifiers(ProviderIdentityBase, table=True):
 class IdentityProviderDetails(BaseModel):
     provider_hint: str
     registered_users: list[AuthenticationIdentifiers]
+
+class RoleScopes(SQLModel, table=True):
+    role: str = Field(primary_key=True, nullable=False)
+    scope: str = Field(primary_key=True, nullable=False)
+
+    
+class NewRole(BaseModel):
+    name:str
+    scopes:list[str]

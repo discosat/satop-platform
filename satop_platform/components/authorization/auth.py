@@ -1,7 +1,7 @@
 
 from dataclasses import dataclass
 from typing import Annotated, Iterable
-import uuid
+from uuid import UUID
 import os
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -54,7 +54,7 @@ class PlatformAuthorization:
         engine_path.parent.mkdir(exist_ok=True)
         engine_url = 'sqlite:///'+str(engine_path)
         self.engine = sqlmodel.create_engine(engine_url)
-        SQLModel.metadata.create_all(self.engine, [models.Entity.__table__, models.AuthenticationIdentifiers.__table__])
+        SQLModel.metadata.create_all(self.engine, [models.Entity.__table__, models.AuthenticationIdentifiers.__table__, models.RoleScopes.__table__])
         self.used_scopes = set()
 
         secret_key_path = config.get_root_data_folder() / 'token_secret'
@@ -63,7 +63,7 @@ class PlatformAuthorization:
             new_secret = os.urandom(32)
             with open(secret_key_path, 'wb') as f:
                 f.write(new_secret)
-                os.chmod(f.fileno(), 600)
+                os.chmod(f.fileno(), 0o600)
             self.__token_secret = new_secret
         else:
             with open(secret_key_path, 'rb') as f:
@@ -133,14 +133,14 @@ class PlatformAuthorization:
 
         return None
 
-    def create_token(self, uuid: uuid.UUID, typ = 'access', expires_delta: timedelta | None = None):
+    def create_token(self, uuid: UUID, typ = 'access', expires_delta: timedelta | None = None):
         data = {
             'sub': str(uuid),
             'typ': typ
         }
         return self.mint_token(data, expires_delta=expires_delta)
     
-    def create_refresh_token(self, uuid: uuid.UUID, typ = 'refresh', expires_delta: timedelta | None = None):
+    def create_refresh_token(self, uuid: UUID, typ = 'refresh', expires_delta: timedelta | None = None):
         if expires_delta is None:
             expires_delta = timedelta(minutes=60)
         data = {
@@ -162,7 +162,7 @@ class PlatformAuthorization:
             raise exceptions.MissingCredentials
         token = credentials.credentials
         # Validate Token
-        payload = validate_token(token)
+        payload = self.validate_token(token)
         _uuid = payload.get('sub')
         if not _uuid:
             raise exceptions.InvalidToken
@@ -178,24 +178,25 @@ class PlatformAuthorization:
             self.used_scopes |= set(needed_scopes)
 
         def f(token_payload: Annotated[dict, Depends(self.require_login)], request: Request):
-            with sqlmodel.Session(self.engine) as session:
-                validated_scopes = token_payload.get('test_scopes')
+            validated_scopes = token_payload.get('test_scopes')
 
-                if validated_scopes is None:
-                    statement = sqlmodel.select(models.Entity).where(models.Entity.id == uuid.UUID(request.state.userid))
-                    entity = session.exec(statement).first()
-                    
-                    if not entity:
-                        raise exceptions.InvalidUser
-                
-                    validated_scopes = entity.scopes.split(',')
+            if validated_scopes is None:
+                validated_scopes = self.get_entity_scopes(UUID(request.state.userid))
 
-                if (isinstance(needed_scopes, str) and needed_scopes in validated_scopes) \
-                    or (set(needed_scopes).issubset(validated_scopes)):
-                    return True
-            
-            raise exceptions.InsufficientPermissions()
+            def matches(scope:str|Iterable[str], validated:str):
+                if isinstance(scope, str):
+                    if validated.endswith('*'):
+                        prefix = validated[:-1]
+                        return scope.startswith(prefix)
+                    return scope == validated
 
+                else:
+                    return all(matches(s, validated) for s in scope)
+
+            if not any(matches(needed_scopes, vs) for vs in validated_scopes):
+                raise exceptions.InsufficientPermissions()
+
+            return True
         return f
 
     def get_all_entities(self):
@@ -208,7 +209,7 @@ class PlatformAuthorization:
         new_entity = models.Entity(
             name=entity.name,
             type=entity.type,
-            scopes=entity.scopes
+            roles=entity.roles
         )
 
         with sqlmodel.Session(self.engine) as session:
@@ -217,10 +218,23 @@ class PlatformAuthorization:
             session.refresh(new_entity)
 
             return new_entity
+    
+    def update_entity(self, entity: models.Entity):
+        with sqlmodel.Session(self.engine) as session:
+            ent = session.exec(
+                sqlmodel.select(models.Entity)
+                        .where(models.Entity.id == entity.id)
+            ).one()
+            ent.sqlmodel_update(entity)
+            session.add(ent)
+            session.commit()
+            session.refresh(ent)
+
+            return ent
 
     def get_entity_details(self, _uuid: str):
         with sqlmodel.Session(self.engine) as session:
-            statement = sqlmodel.select(models.Entity).where(models.Entity.id == uuid.UUID(_uuid))
+            statement = sqlmodel.select(models.Entity).where(models.Entity.id == UUID(_uuid))
             entity = session.exec(statement).first()
 
             if not entity:
@@ -230,7 +244,7 @@ class PlatformAuthorization:
 
     def connect_entity_idp(self, _uuid: str, provider: models.ProviderIdentityBase):
         aidp = models.AuthenticationIdentifiers(
-            entity_id=uuid.UUID(_uuid),
+            entity_id=UUID(_uuid),
             provider=provider.provider,
             identity=provider.identity
         )
@@ -261,3 +275,67 @@ class PlatformAuthorization:
 
             return models.IdentityProviderDetails(provider_hint=provider.identity_hint, registered_users=entitites)
         
+    def get_roles(self):
+        with sqlmodel.Session(self.engine) as session:
+            statement = sqlmodel.select(models.RoleScopes)
+            results = session.exec(statement)
+            roles:dict[str,list[str]] = dict()
+
+            for res in results:
+                if res.role not in roles:
+                    roles[res.role] = list()
+                roles[res.role].append(res.scope)
+            
+            for k,v in roles.items():
+                roles[k] = sorted(v)
+
+            return roles
+    
+
+    def create_new_role(self, name:str, scopes:list[str]):
+        new_roles = [
+            models.RoleScopes(role=name, scope=s)
+            for s in scopes
+        ]
+
+        with sqlmodel.Session(self.engine) as session:
+            session.add_all(new_roles)
+            session.commit()
+        
+        return
+    
+    def update_role(self, name:str, scopes:list[str]):
+        with sqlmodel.Session(self.engine) as session:
+            result = session.exec(sqlmodel.select(models.RoleScopes).where(models.RoleScopes.role == name)).all()
+            current_scopes = {s.scope for s in result}
+            new_scopes = set(scopes)
+
+            to_delete = current_scopes - new_scopes
+            to_add = new_scopes - current_scopes
+
+            for res in result:
+                if res.scope in to_delete:
+                    session.delete(res)
+
+            session.add_all([models.RoleScopes(role=name, scope=s) for s in to_add])
+            session.commit()
+        
+        return {
+            'deleted': len(to_delete),
+            'added': len(to_add)
+        }
+
+    def get_entity_scopes(self, entity_id:UUID):
+        with sqlmodel.Session(self.engine) as session:
+            statement = sqlmodel.select(models.Entity).where(models.Entity.id == entity_id)
+            entity = session.exec(statement).first()
+            
+            if not entity:
+                raise exceptions.InvalidUser
+            
+            roles = entity.roles.split(',')
+
+            statement = sqlmodel.select(models.RoleScopes).where(models.RoleScopes.role.in_(roles))
+            result = session.exec(statement).all()
+        
+            return {x.scope for x in result}
