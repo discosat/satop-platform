@@ -2,8 +2,9 @@ import asyncio
 import importlib
 import logging
 import os
-import pathlib
 import subprocess
+
+import typer
 
 from satop_platform.components.restapi import routes
 from satop_platform.plugin_engine.plugin_engine import SatopPluginEngine
@@ -13,7 +14,11 @@ from satop_platform.components.authorization.auth import PlatformAuthorization
 from satop_platform.components.groundstation.connector import GroundstationConnector
 from satop_platform.components.restapi.restapi import APIApplication
 from satop_platform.components.syslog.syslog import Syslog
+
+from satop_platform.components.authorization.cli import auth_cli
+
 class SatOPApplication:
+    cli: typer.Typer
     logger: logging.Logger
     event_manager: SatOPEventManager
     api: APIApplication
@@ -32,7 +37,14 @@ class SatOPApplication:
         return self.__version
     
 
-    def __init__(self, log_level = 0):
+    def __init__(self, log_level = 0, cli:typer.Typer|None=None):
+        git_hash = self.get_git_head()
+        version_suffix = '-' + git_hash if git_hash else ''
+
+        application_title = 'SatOP Platform'
+        version = importlib.metadata.version('satop_platform') + version_suffix
+
+        self.__version = version
         self.logger = logging.getLogger()
 
         self.logger.setLevel(logging.DEBUG)
@@ -41,13 +53,11 @@ class SatOPApplication:
         formatter = logging.Formatter("[%(asctime)s] [%(levelname)7s] -- %(filename)20s:%(lineno)-4s -- %(message)s", "%Y-%m-%d %H:%M:%S")
         console_log_handler.setFormatter(formatter)
 
-        if 1 == log_level:
-            console_log_handler.setLevel(logging.INFO)
-        elif 1 < log_level:
-            console_log_handler.setLevel(logging.DEBUG)
-        else:
-            console_log_handler.setLevel(logging.WARNING)
-        self.logger.addHandler(console_log_handler)
+        if cli:
+            self.cli = cli
+
+        self._ch = console_log_handler
+        self.set_log_level(log_level)
 
         self.event_manager = SatOPEventManager()
 
@@ -55,14 +65,6 @@ class SatOPApplication:
         if not self.data_root.exists():
             logging.info(f'Creating data directory {self.data_root}')
             self.data_root.mkdir(parents=True)
-        
-        git_hash = self.get_git_head()
-        version_suffix = '-' + git_hash if git_hash else ''
-
-        application_title = 'SatOP Platform'
-        version = importlib.metadata.version('satop_platform') + version_suffix
-        self.__version = version
-
 
         self.auth = PlatformAuthorization()
         self.api = APIApplication(self, title = application_title, version = version)
@@ -73,6 +75,21 @@ class SatOPApplication:
         routes.load_routes(self)
 
         self.plugin_engine = SatopPluginEngine(self)
+
+    def load_cli(self):
+        self.cli.add_typer(auth_cli(self.auth))
+        self.cli.add_typer(self.plugin_engine.cli)
+
+
+    def set_log_level(self, log_level:int):
+        self.logger.removeHandler(self._ch)
+        if 1 == log_level:
+            self._ch.setLevel(logging.INFO)
+        elif 1 < log_level:
+            self._ch.setLevel(logging.DEBUG)
+        else:
+            self._ch.setLevel(logging.WARNING)
+        self.logger.addHandler(self._ch)
     
     def run(self):
         self.event_manager.publish('satop.startup', None)

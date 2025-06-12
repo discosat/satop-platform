@@ -16,6 +16,7 @@ import site
 
 import networkx as nx
 import yaml
+import typer
 
 import satop_platform.core.config
 from satop_platform.components.restapi import exceptions
@@ -42,14 +43,21 @@ class SatopPluginEngine:
     _load_order: list
     _registered_plugin_methods: dict[str, dict[str, callable]]
     app: SatOPApplication
+    cli: typer.Typer
 
     def __init__(self, app: SatOPApplication):
         self._plugins = dict()
-        self._load_order = dict()
+        self._load_order = list()
         self._registered_plugin_methods = dict()
         self.app = app
 
         logger.debug(self.app.event_manager.subscriptions)
+
+        self.cli = typer.Typer(name='plugin')
+
+        @self.cli.command()
+        def install_all_requirements():
+            self.install_requirements(force_rediscover=True)
 
     def __del__(self):
         for name, p in self._plugins.items():
@@ -215,7 +223,7 @@ class SatopPluginEngine:
                     / "plugin_data"
                     / plugin_name
                 )
-                plugin_instance = module.PluginClass(
+                plugin_instance:Plugin = module.PluginClass(
                     data_dir=plugin_data_dir, app=self.app
                 )
 
@@ -230,6 +238,10 @@ class SatopPluginEngine:
 
                 # Store the plugin instance before initialization
                 plugin_info.instance = plugin_instance
+
+                if plugin_instance.cli:
+                    logger.debug(f'Registering CLI for plugin {plugin_name}')
+                    self.cli.add_typer(plugin_instance.cli)
 
                 # Set the API router, if any
                 caps = config.get("capabilities", [])
@@ -272,13 +284,13 @@ class SatopPluginEngine:
         url_friendly_name = re.sub(r"[^a-z0-9_]", "", url_friendly_name)
 
         if plugin_name != url_friendly_name:
-            logger.warning(
+            logger.debug(
                 f'Path for plugin name "{plugin_name}" has been modified to "{url_friendly_name}" for URL safety and consistency'
             )
 
         num_routes = len(router.routes)
         if num_routes > 0:
-            logger.info(f"Plugin '{plugin_name}' has {num_routes} routes. Mounting...")
+            logger.info(f"Mounting {num_routes} API routes from plugin '{plugin_name}'.")
             self.app.api.mount_plugin_router(url_friendly_name, router)
 
     def _register_authentication_plugins(
@@ -466,8 +478,8 @@ class SatopPluginEngine:
     def get_registered_plugin_methods(self):
         return self._registered_plugin_methods
 
-    def install_requirements(self):
-        self._discover_plugins()
+    def install_requirements(self, force_rediscover=False):
+        self._discover_plugins(force_rediscover=force_rediscover)
         self._install_requirements()
 
     def load_plugins(self):

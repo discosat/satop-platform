@@ -1,18 +1,22 @@
 import os
 import logging
 from hashlib import scrypt
+from typing import Annotated
 
 import sqlmodel
 import sqlalchemy.exc 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
+import typer
 
+from satop_platform.components.authorization.models import EntityBase, EntityType, ProviderIdentityBase
 from satop_platform.plugin_engine.plugin import AuthenticationProviderPlugin
 from satop_platform.components.restapi import exceptions
 from satop_platform.core import config
 
 # from .password_authentication_provider import models
 from pydantic import BaseModel
+
 
 class HashedCredentials(sqlmodel.SQLModel, table=True):
     email: str = sqlmodel.Field(unique=True, primary_key=True)
@@ -54,6 +58,8 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
         # sqlmodel.SQLModel.metadata.create_all(self.sql_engine)
         # if not inspect(self.sql_engine).has_table(HashedCredentials.__tablename__):
         HashedCredentials.__table__.create(self.sql_engine, checkfirst=True)
+
+        self.init_cli()
 
         self.api_router = APIRouter(prefix='/login', tags=['Authentication'])
 
@@ -111,17 +117,7 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
                             #   ]
                              )
         async def __create_user(credentials: PasswordCredentials):
-            with sqlmodel.Session(self.sql_engine) as session:
-                salt = os.urandom(16)
-                hashed_pass = self.hash_function(credentials.password, salt)
-                entry = HashedCredentials(email=credentials.email, password_hash=hashed_pass, salt=salt)
-                try:
-                    session.add(entry)
-
-                    session.commit()
-                    return PasswordUser(email=credentials.email)
-                except sqlalchemy.exc.IntegrityError:
-                    raise HTTPException(status.HTTP_409_CONFLICT, 'User already exists')
+            return self.create_user(credentials)
         
         @self.api_router.get(
                 '/users', 
@@ -132,6 +128,20 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
             )
         async def __get_all_users():
             return self.get_users()
+
+    def create_user(self, credentials: PasswordCredentials):
+        with sqlmodel.Session(self.sql_engine) as session:
+            salt = os.urandom(16)
+            hashed_pass = self.hash_function(credentials.password, salt)
+            entry = HashedCredentials(email=credentials.email, password_hash=hashed_pass, salt=salt)
+            try:
+                session.add(entry)
+
+                session.commit()
+                return PasswordUser(email=credentials.email)
+            except sqlalchemy.exc.IntegrityError:
+                raise HTTPException(status.HTTP_409_CONFLICT, 'User already exists')
+
 
     def get_user(self, email: str):
         with sqlmodel.Session(self.sql_engine) as session:
@@ -144,6 +154,19 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
             statement = sqlmodel.select(HashedCredentials)
             users = session.exec(statement).all()
             return list(map(lambda u: PasswordUser(email=u.email) , users))
+        
+    def remove_user(self, email:str):
+        with sqlmodel.Session(self.sql_engine) as session:
+            statement = sqlmodel.select(HashedCredentials).where(HashedCredentials.email == email)
+            user = session.exec(statement).first()
+            if user:
+                logger.info(f'Deleting user ({email})')
+                session.delete(user)
+            else:
+                logger.warning(f'Could not delete user ({email}). Not found!')
+                raise exceptions.NotFound()
+            session.commit()
+
 
     def validate(self, email: str, password: str) -> bool: 
         user = self.get_user(email)
@@ -172,3 +195,66 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
         dklen = 64
 
         return scrypt(password, salt=salt, n=n, r=r, p=p, maxmem=maxmem, dklen=dklen)
+
+    def init_cli(self):
+        from rich import print
+
+        self.cli = typer.Typer(name='password-auth')
+
+        provider_key = self.config.get('authentication_provider', dict()).get('provider_key', self.name)
+
+        @self.cli.command('new-user')
+        def create_email_password_user(
+            name: str,
+            email: str,
+            password: Annotated[
+                str, typer.Option(prompt=True, confirmation_prompt=True, hide_input=True)
+            ],
+            roles: list[str]
+        ):
+            credentials = PasswordCredentials(
+                email=email,
+                password=password
+            )
+
+            entity = self.app.auth.add_entity(EntityBase(name=name, roles=','.join(roles), type=EntityType.person))
+            pwuser = self.create_user(credentials)
+            self.app.auth.connect_entity_idp(str(entity.id), ProviderIdentityBase(provider=provider_key, identity=email))
+            
+            print('Created new user:')
+            print(entity)
+            print(pwuser)
+
+        @self.cli.command('rm-user')
+        def remove_user(
+            email: str,
+            remove_entity: Annotated[bool, typer.Option('--remove-entity')] = False
+        ):
+            print('Deleting following user: ', email)
+            self.remove_user(email)
+
+            if remove_entity:
+                raise NotImplementedError
+                
+        
+        @self.cli.command('users')
+        def list_users():
+            registered = self.app.auth.get_idp_details(provider_key).registered_users
+            internal = self.get_users()
+
+            unregistered = list(filter(lambda x: all(x.email != y.identity for y in registered), internal))
+
+            if registered:
+                print('Email users registered on the platform:')
+                for e in registered:
+                    print('-',end=' ')
+                    print(e)
+            else:
+                print('There is currently no email users connected to the main platform authorization.')
+
+            if unregistered:
+                print('\nRegisterd users not connected to the platform:')
+                for e in unregistered:
+                    print('-',end=' ')
+                    print(e)
+

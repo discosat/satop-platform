@@ -1,21 +1,26 @@
 from collections.abc import Callable
 from pathlib import Path
-from typing import Dict, Iterable
+from typing import Dict, Iterable, Union
 import logging
 from fastapi import APIRouter
 import yaml
+import typer
 
-# from typing import TYPE_CHECKING
-# if TYPE_CHECKING:
-#     from satop_platform.core.satop_application import SatOPApplication
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from satop_platform.core.satop_application import SatOPApplication
+
+app_type=Union["SatOPApplication"]
 
 class Plugin:
     name: str
     config: dict
     data_dir: Path
     logger: logging.Logger
-    api_router: APIRouter = None
-    # app:SatOPApplication
+    app: app_type
+    api_router: APIRouter|None = None
+    cli: typer.Typer|None = None
+
 
     @classmethod
     def register_function(cls, func):
@@ -27,7 +32,7 @@ class Plugin:
         func._register_as_plugin_function = True
         return func
 
-    def __init__(self, plugin_dir: str, data_dir: Path = None, app=None): # TODO: this might be too exposed!
+    def __init__(self, plugin_dir: str, data_dir: Path|None = None, app:app_type=None): # TODO: this might be too exposed!
         """Initializes the plugin with its configuration.
 
         Args:

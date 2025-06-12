@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def get_root_data_folder():
     env_path = os.environ.get('SATOP_DATA_ROOT')
     if env_path:
-        logger.info(f'Got data dir from env: {env_path}')
+        logger.debug(f'Got data dir from env: {env_path}')
         p = pathlib.Path(env_path)
         
         try:
