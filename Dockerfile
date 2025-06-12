@@ -24,7 +24,11 @@ ENTRYPOINT [ "python", "-m", "satop_platform" ]
 
 FROM base AS devel
 
+RUN mkdir /ws
 RUN adduser devuser
+RUN chown -R devuser:devuser /ws
 USER devuser
+
+ENV PATH=$PATH:/home/devuser/.local/bin
 
 ENV SHELL=bash

@@ -38,8 +38,8 @@ services:
     ports:
       - 7889:7889
     volumes:
-      - ..:/satop
+      - ..:/ws
       - ./data:/satop/data
     environment:
-      - SATOP_DATA_ROOT=/satop/docker/data
+      - SATOP_DATA_ROOT=/satop/data
     command: ["sleep", "infinity"]

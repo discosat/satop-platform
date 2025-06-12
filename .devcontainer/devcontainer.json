@@ -5,9 +5,9 @@
     "runServices": [
         "devcontainer"
     ],
-    "postCreateCommand": "pip install -e /satop",
+    "postCreateCommand": "pip install -e /ws",
     "shutdownAction": "stopCompose",
-    "workspaceFolder": "/satop",
+    "workspaceFolder": "/ws",
     "remoteUser": "devuser",
     "customizations": {
         "vscode": {
