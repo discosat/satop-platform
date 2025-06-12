@@ -10,9 +10,9 @@ from satop_platform.components.restapi import exceptions
 
 from typing import TYPE_CHECKING, Annotated
 if TYPE_CHECKING:
-    from satop_platform.core.component_initializer import SatOPComponents
+    from satop_platform.core.satop_application import SatOPApplication
 
-def load_routes(components: SatOPComponents):
+def load_routes(components: SatOPApplication):
     api_app = components.api
     auth = components.auth
 
