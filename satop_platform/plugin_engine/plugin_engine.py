@@ -11,8 +11,9 @@ from collections import defaultdict
 from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 import site
+from uuid import UUID
 
 import networkx as nx
 import yaml
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PluginDictItem:
-    config: dict[str, any]
+    config: dict[str, Any]
     path: str
     package_name: str
     instance: Optional[Plugin] = None
@@ -41,7 +42,7 @@ class PluginDictItem:
 class SatopPluginEngine:
     _plugins: dict[str, PluginDictItem]
     _load_order: list
-    _registered_plugin_methods: dict[str, dict[str, callable]]
+    _registered_plugin_methods: dict[str, dict[str, Callable]]
     app: SatOPApplication
     cli: typer.Typer
 
@@ -257,6 +258,7 @@ class SatopPluginEngine:
                             f"{plugin_name} has created a route but does not have the required capabilities to mount it. Ensure it has 'http.add_routes' in the plugin's 'config.yaml'"
                         )
                 if "security.authentication_provider" in caps:
+                    assert(isinstance(plugin_instance, AuthenticationProviderPlugin))
                     self._register_authentication_plugins(plugin_instance)
 
                 logger.info(f"Loaded plugin: {plugin_name}")
@@ -298,11 +300,11 @@ class SatopPluginEngine:
     ):
         plugin_name = plugin_instance.name
 
-        config = self._plugins.get(plugin_name).config
+        config = self._plugins[plugin_name].config
         provider_config = config.get("authentication_provider")
 
         provider_key = plugin_name
-        identifier_hint = None
+        identifier_hint = ""
 
         if provider_config:
             provider_key = provider_config.get("provider_key", provider_key)
@@ -315,40 +317,40 @@ class SatopPluginEngine:
             if user_id != "":
                 # Login
                 # Get uuid
-                uuid = self.app.api.authorization.get_uuid(provider_key, user_id)
-                if not uuid:
+                user_uuid:UUID|None = self.app.api.authorization.get_uuid(provider_key, user_id)
+                if not user_uuid:
                     raise exceptions.InvalidCredentials
                 # TODO: Make it possible for plugin to specify expiry, e.g. for long-lived application keys
-                token = self.app.api.authorization.create_token(uuid)
+                token = self.app.api.authorization.create_token(user_uuid)
                 return token
             else:
                 # Refresh
-                token = self.app.api.authorization.create_token(uuid)
+                token = self.app.api.authorization.create_token(UUID(uuid))
                 return token
     
         def _get_refresh_token(user_id: str = "", uuid: str = ""):
             if user_id != "":
                 # Login
-                uuid = self.app.api.authorization.get_uuid(provider_key, user_id)
-                if not uuid:
+                user_uuid:UUID|None = self.app.api.authorization.get_uuid(provider_key, user_id)
+                if not user_uuid:
                     raise exceptions.InvalidCredentials
                 # TODO: Make it possible for plugin to specify expiry, e.g. for long-lived application keys
-                token = self.app.api.authorization.create_refresh_token(uuid)
+                token = self.app.api.authorization.create_refresh_token(user_uuid)
                 return token
             else:
                 # Refresh
-                token = self.app.api.authorization.create_refresh_token(uuid)
+                token = self.app.api.authorization.create_refresh_token(UUID(uuid))
                 return token
         
         def _validate_token(token: str):
             payload = self.app.api.authorization.validate_tokens(token)
             return payload
 
-        self._plugins.get(plugin_name).instance.create_auth_token = _get_auth_token
-        self._plugins.get(plugin_name).instance.create_refresh_token = _get_refresh_token
-        self._plugins.get(plugin_name).instance.validate_token = _validate_token
+        plugin_instance.create_auth_token = _get_auth_token
+        plugin_instance.create_refresh_token = _get_refresh_token
+        plugin_instance.validate_token = _validate_token
 
-    def _graph_targets(self) -> dict[str, list[callable]]:
+    def _graph_targets(self) -> dict[str, list[Callable]]:
         G = nx.DiGraph()
         edges = set()
 
@@ -398,7 +400,14 @@ class SatopPluginEngine:
                         f'No function specified for target "{target_name}" in plugin "{name}"'
                     )
                 if function_name:
-                    inst = self._plugins.get(name).instance
+                    plug = self._plugins.get(name)
+                    if plug is None:
+                        logger.error(
+                            f'Plugin not found "{name}"'
+                        )
+                        raise RuntimeError("Plugin not discovered. What did you do?")
+
+                    inst = plug.instance
                     if inst is None:
                         logger.error(
                             f'Plugin instance not initialized for plugin "{name}"'
@@ -451,7 +460,7 @@ class SatopPluginEngine:
         return trees
 
     def _register_plugin_method(
-        self, plugin_name: str, method_name: str, func: callable
+        self, plugin_name: str, method_name: str, func: Callable
     ):
         if plugin_name not in self._registered_plugin_methods:
             self._registered_plugin_methods[plugin_name] = dict()

@@ -23,7 +23,7 @@ class EntityBase(SQLModel):
                 }
             ]
         }
-    }
+    } # type: ignore
 
 class Entity(EntityBase, table=True):
     __table_args__ = {'extend_existing': True}
@@ -43,7 +43,7 @@ class ProviderIdentityBase(SQLModel):
                 }
             ]
         }
-    }
+    } # type: ignore
 
 class AuthenticationIdentifiers(ProviderIdentityBase, table=True):
     __table_args__ = {'extend_existing': True}

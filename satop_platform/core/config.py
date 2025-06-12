@@ -3,6 +3,7 @@ import pathlib
 import re
 import sys
 import os
+from typing import Any
 import yaml
 
 from collections.abc import Mapping, Iterable
@@ -37,14 +38,14 @@ def get_root_data_folder():
 
 class SatopConfig:
     __config_name: str
-    __default_config: dict
-    __user_config: dict
+    __default_config: dict[str, Any] | None
+    __user_config: dict[str, Any] | None
 
     @property
     def config_name(self):
         return self.__config_name
 
-    def __init__(self, config_name: str = None):
+    def __init__(self, config_name: str):
         self.__config_name = config_name
         self.reload()
 
@@ -76,7 +77,7 @@ class SatopConfig:
                 logger.debug(f'Loaded config: {config}')
         return config
     
-    def _traverse_config(self, config:dict, key_path:Iterable[str]):
+    def _traverse_config(self, config:dict|None, key_path:Iterable[str]):
         if config is None:
             return None
 
@@ -88,7 +89,7 @@ class SatopConfig:
             return item
 
         if not isinstance(item, dict):
-            self.logger.error(f'Error traversing config for value "{key_path}" at "{next}" ({type(item)})')
+            logger.error(f'Error traversing config for value "{key_path}" at "{next}" ({type(item)})')
             raise LookupError
 
         return self._traverse_config(item, p)

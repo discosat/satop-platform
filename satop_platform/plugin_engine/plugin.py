@@ -1,6 +1,6 @@
 from collections.abc import Callable
 from pathlib import Path
-from typing import Dict, Iterable, Union
+from typing import Any, Dict, Iterable, Union
 import logging
 from fastapi import APIRouter
 import yaml
@@ -32,7 +32,7 @@ class Plugin:
         func._register_as_plugin_function = True
         return func
 
-    def __init__(self, plugin_dir: str, data_dir: Path|None = None, app:app_type=None): # TODO: this might be too exposed!
+    def __init__(self, plugin_dir: str, app:app_type, data_dir: Path):
         """Initializes the plugin with its configuration.
 
         Args:
@@ -106,11 +106,14 @@ class Plugin:
 
 
 class AuthenticationProviderPlugin(Plugin):
-    def create_auth_token(self, user_id: str = "", uuid: str = ""):
+    def create_auth_token(self, user_id: str = "", uuid: str = "") -> str: 
         self.logger.warning('create_auth_token has not been initialized.')
+        return ""
 
-    def create_refresh_token(self, user_id: str = "", uuid: str = ""):
+    def create_refresh_token(self, user_id: str = "", uuid: str = "") -> str:
         self.logger.warning('create_refresh_token has not been initialized')
+        return ""
 
-    def validate_token(self, token: str):
+    def validate_token(self, token: str) -> dict[str, Any]:
         self.logger.warning('validate_token has not been initialized')
+        return dict()

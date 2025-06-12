@@ -40,7 +40,7 @@ auth_scheme = HTTPBearer(
 
 @dataclass
 class ProviderDictItem:
-    identity_hint: str | None = None
+    identity_hint: str
 
 class PlatformAuthorization:
     providers: dict[str, ProviderDictItem]
@@ -54,7 +54,7 @@ class PlatformAuthorization:
         engine_path.parent.mkdir(exist_ok=True)
         engine_url = 'sqlite:///'+str(engine_path)
         self.engine = sqlmodel.create_engine(engine_url)
-        SQLModel.metadata.create_all(self.engine, [models.Entity.__table__, models.AuthenticationIdentifiers.__table__, models.RoleScopes.__table__])
+        SQLModel.metadata.create_all(self.engine, [models.Entity.__table__, models.AuthenticationIdentifiers.__table__, models.RoleScopes.__table__]) # type: ignore
         self.used_scopes = set()
 
         secret_key_path = config.get_root_data_folder() / 'token_secret'
@@ -116,7 +116,7 @@ class PlatformAuthorization:
                 return payload
             raise exceptions.InvalidToken()
 
-    def register_provider(self, provider_key: str, identity_hint: str|None = None):
+    def register_provider(self, provider_key: str, identity_hint: str):
         if provider_key in self.providers:
             raise RuntimeError('Provider name already registered')
 
@@ -273,7 +273,7 @@ class PlatformAuthorization:
             if not provider:
                 raise exceptions.NotFound(f"Provider {provider_name} not found")
 
-            return models.IdentityProviderDetails(provider_hint=provider.identity_hint, registered_users=entitites)
+            return models.IdentityProviderDetails(provider_hint=provider.identity_hint, registered_users=list(entitites))
         
     def get_roles(self):
         with sqlmodel.Session(self.engine) as session:
@@ -335,7 +335,7 @@ class PlatformAuthorization:
             
             roles = entity.roles.split(',')
 
-            statement = sqlmodel.select(models.RoleScopes).where(models.RoleScopes.role.in_(roles))
+            statement = sqlmodel.select(models.RoleScopes).where(models.RoleScopes.role.in_(roles)) # type: ignore
             result = session.exec(statement).all()
         
             return {x.scope for x in result}

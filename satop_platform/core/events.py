@@ -1,8 +1,6 @@
 import logging
-from dataclasses import dataclass
-from queue import Queue
-from typing import TypeVar, Generic, List, Any
-from collections.abc import Callable, Awaitable
+from typing import TypeVar
+from collections.abc import Callable
 
 _T = TypeVar('EventData')
 

@@ -23,13 +23,13 @@ class APIApplication:
     def __init__(self, app: SatOPApplication, *args, **kwargs):
         #self._api_config = config.load_config('api.yml')
         self._api_config = SatopConfig('api')
-        self._root_path = self._api_config.get('root_path', '/api')
+        self._root_path = self._api_config.get('root_path', '/api') # type: ignore
 
         self.api_app = FastAPI(*args, **kwargs)
         self.authorization = app.auth
         self._router = APIRouter(prefix=self._root_path)
 
-    def mount_plugin_router(self, plugin_name:str, plugin_router: APIRouter, tags: list[str] = None, plugin_path: str=None):
+    def mount_plugin_router(self, plugin_name:str, plugin_router: APIRouter, tags: list[str] | None = None, plugin_path: str | None = None):
         """Mount a router from a plugin
 
         Args:
@@ -44,6 +44,7 @@ class APIApplication:
 
         if plugin_path is None:
             plugin_path = self._api_config.get('plugin_path', '/plugins')
+            assert(isinstance(plugin_path, str))
 
         if plugin_router.prefix == '':
             plugin_path += '/' + plugin_name
@@ -80,6 +81,6 @@ class APIApplication:
         # logger.debug(f"Listing routes custom: {self.list_routes()}")
         logger.info(f'Starting server on {host}:{port}')
 
-        config = uvicorn.Config(self.api_app, host=host, port=port, log_level="info")
+        config = uvicorn.Config(self.api_app, host=host, port=port, log_level="info") # type: ignore
         server = uvicorn.Server(config)
         await server.serve()
