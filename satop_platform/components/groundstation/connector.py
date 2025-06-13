@@ -141,7 +141,7 @@ class GroundstationConnector:
             )
 
             try:
-                token_payload = api.authorization.validate_tokens(access_token)
+                token_payload = api.authorization.validate_token(access_token)
 
             except exceptions.ExpiredToken \
                  | exceptions.InvalidToken as e:
@@ -274,7 +274,7 @@ class GroundstationConnector:
             assert access_token is not None
 
             try:
-                token_payload = api.authorization.validate_tokens(access_token)
+                token_payload = api.authorization.validate_token(access_token)
 
             except exceptions.ExpiredToken \
                  | exceptions.InvalidToken as e:

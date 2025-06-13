@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 import logging
 import os
 import re
@@ -23,6 +22,8 @@ import satop_platform.core.config
 from satop_platform.components.restapi import exceptions
 from satop_platform.core.config import merge_dicts
 from satop_platform.plugin_engine.plugin import AuthenticationProviderPlugin, Plugin
+
+from satop_platform.components.authorization.models import TokenPair
 
 if TYPE_CHECKING:
     from satop_platform.core.satop_application import SatOPApplication
@@ -312,43 +313,33 @@ class SatopPluginEngine:
 
         # Register provider
         self.app.auth.register_provider(provider_key, identifier_hint)
+            
+        def _create_token_pair(user_id: str | None = None, uuid: UUID | None = None):
+            if user_id:
+                uuid = self.app.auth.get_uuid(provider_key, user_id)
+                if uuid is None:
+                    raise exceptions.InvalidCredentials
+                            
+            elif uuid:
+                pass
 
-        def _get_auth_token(user_id: str = "", uuid: str = ""):
-            if user_id != "":
-                # Login
-                # Get uuid
-                user_uuid:UUID|None = self.app.api.authorization.get_uuid(provider_key, user_id)
-                if not user_uuid:
-                    raise exceptions.InvalidCredentials
-                # TODO: Make it possible for plugin to specify expiry, e.g. for long-lived application keys
-                token = self.app.api.authorization.create_token(user_uuid)
-                return token
             else:
-                # Refresh
-                token = self.app.api.authorization.create_token(UUID(uuid))
-                return token
-    
-        def _get_refresh_token(user_id: str = "", uuid: str = ""):
-            if user_id != "":
-                # Login
-                user_uuid:UUID|None = self.app.api.authorization.get_uuid(provider_key, user_id)
-                if not user_uuid:
-                    raise exceptions.InvalidCredentials
-                # TODO: Make it possible for plugin to specify expiry, e.g. for long-lived application keys
-                token = self.app.api.authorization.create_refresh_token(user_uuid)
-                return token
-            else:
-                # Refresh
-                token = self.app.api.authorization.create_refresh_token(UUID(uuid))
-                return token
+                raise RuntimeError
+            
+            return TokenPair(
+                access_token = self.app.auth.create_token(uuid),
+                refresh_token = self.app.auth.create_refresh_token(uuid)
+            )
+
         
         def _validate_token(token: str):
-            payload = self.app.api.authorization.validate_tokens(token)
+            payload = self.app.auth.validate_token(token)
             return payload
 
-        plugin_instance.create_auth_token = _get_auth_token
-        plugin_instance.create_refresh_token = _get_refresh_token
+        # plugin_instance.create_auth_token = _get_auth_token
+        # plugin_instance.create_refresh_token = _get_refresh_token
         plugin_instance.validate_token = _validate_token
+        plugin_instance.create_token_pair = _create_token_pair
 
     def _graph_targets(self) -> dict[str, list[Callable]]:
         G = nx.DiGraph()

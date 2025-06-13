@@ -2,11 +2,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Dict, Iterable, Union
 import logging
+from uuid import UUID
 from fastapi import APIRouter
 import yaml
 import typer
 
 from typing import TYPE_CHECKING
+
+from satop_platform.components.authorization.models import Token, TokenPair
 if TYPE_CHECKING:
     from satop_platform.core.satop_application import SatOPApplication
 
@@ -106,14 +109,10 @@ class Plugin:
 
 
 class AuthenticationProviderPlugin(Plugin):
-    def create_auth_token(self, user_id: str = "", uuid: str = "") -> str: 
+    def create_token_pair(self, user_id: str | None = None, uuid: UUID | None = None) -> TokenPair:
         self.logger.warning('create_auth_token has not been initialized.')
-        return ""
+        raise NotImplemented
 
-    def create_refresh_token(self, user_id: str = "", uuid: str = "") -> str:
-        self.logger.warning('create_refresh_token has not been initialized')
-        return ""
-
-    def validate_token(self, token: str) -> dict[str, Any]:
+    def validate_token(self, token: str) -> Token | None:
         self.logger.warning('validate_token has not been initialized')
-        return dict()
+        raise NotImplemented

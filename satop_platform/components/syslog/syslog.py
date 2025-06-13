@@ -4,7 +4,7 @@ import hashlib
 import os
 import shutil
 from typing import IO
-from fastapi import APIRouter, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse
 import sqlalchemy
 import sqlmodel
@@ -40,6 +40,7 @@ class Syslog:
         )
 
         @router.post('/events',
+                dependencies=[Depends(app.auth.require_scope('satop.log.write'))],
                 summary="Add an event to the log",
                 description="Add a new event to the system log. Events consist of relationships of RDF triples. If the predicate or object is omitted in a triple, the event action itself will referenced here.\n\nIf omitted, 'id' and 'timestamp' wil be automatically generated.",
                 response_description="The full event with timestamp and ID added if they were omitted in the original request.",
@@ -47,8 +48,17 @@ class Syslog:
         async def new_log_event(event: models.Event):
             self.log_event(event)
             return event
+        
+        @router.get('/events',
+                dependencies=[Depends(app.auth.require_scope('satop.log.read'))],
+                summary="Read events from the log",
+                description="Not implemented",
+            )
+        async def get_log_events():
+            raise exceptions.NotImplemented
 
         @router.post('/artifacts', 
+                dependencies=[Depends(app.auth.require_scope('satop.log.write'))],
                 summary="Upload new artifact",
                 description="Upload a file as an artifact for referencing in the logging system.",
                 response_description="Successful upload. Contains calculated SHA1-hash of the artifact to use in log events.",
@@ -77,6 +87,7 @@ class Syslog:
                 raise HTTPException(status_code=status.HTTP_200_OK, detail=f'Artifact already exists. Reupload not neccessary. {e.params[0]}')
 
         @router.get('/artifacts/{hash}',
+                dependencies=[Depends(app.auth.require_scope('satop.log.read'))],
                 summary='Download an artifact',
                 description='Get a previously uploaded artifact by its SHA1 hash.',
                 response_class=FileResponse,
@@ -93,7 +104,8 @@ class Syslog:
 
             return FileResponse(file)
         
-        @router.get("/artifacts")
+        @router.get("/artifacts",
+            dependencies=[Depends(app.auth.require_scope('satop.log.read'))])
         def get_artifacts():
             with sqlmodel.Session(self.db) as session:
                 statement = sqlmodel.select(models.ArtifactStore)

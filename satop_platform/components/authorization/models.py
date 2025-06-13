@@ -1,8 +1,13 @@
+from typing import Annotated, List, Literal, Optional
 import uuid
 from enum import Enum
+import datetime as dt
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlmodel import SQLModel, Field
+
+def _utc_now():
+    return dt.datetime.now(dt.timezone.utc)
 
 class EntityType(str, Enum):
     person = 'person'
@@ -62,3 +67,33 @@ class RoleScopes(SQLModel, table=True):
 class NewRole(BaseModel):
     name:str
     scopes:list[str]
+
+
+class TokenType(str, Enum):
+    access = 'access'
+    refresh = 'refresh'
+    # id = 'id'
+
+class TokenBase(BaseModel):
+    sub: uuid.UUID
+    typ: TokenType
+    nbf: Optional[dt.datetime] = Field(None)
+    exp: Optional[dt.datetime] = None
+
+    @field_validator('sub', mode='before')
+    def uuid_str(cls, v):
+        if isinstance(v, str):
+            return uuid.UUID(v)
+        return v
+
+class Token(TokenBase):
+    nbf: Optional[dt.datetime] = Field(default_factory=_utc_now)
+    iat: dt.datetime = Field(default_factory=_utc_now)
+
+class TestToken(Token):
+    test_name: str
+    test_scopes: List[str]
+
+class TokenPair(BaseModel):
+    access_token: str
+    refresh_token: str

@@ -1,5 +1,6 @@
 
 from dataclasses import dataclass
+import json
 from typing import Annotated, Iterable
 from uuid import UUID
 import os
@@ -18,6 +19,14 @@ from satop_platform.components.restapi import exceptions
 from satop_platform.components.authorization import models
 
 logger = logging.getLogger(__name__)
+
+
+class UUIDJSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, UUID):
+            return str(o)
+        else:
+            return super().default(o)
 
 ALGORITHM = "HS256"
 
@@ -72,49 +81,68 @@ class PlatformAuthorization:
                     logger.warning(f'Access to the token secret is too permissive: {oct(status.st_mode)[-3:]}. Only the owner should be able view it (600)!')
                 self.__token_secret = f.read()
     
-    def mint_token(self, data: dict, expires_delta: timedelta | None = None):
-        required_keys = ['sub', 'typ']
-        for k in required_keys:
-            if k not in data:
-                raise ValueError(f'Cannot mint token without key "{k}"')
-        to_encode = data.copy()
-        to_encode['iat'] = datetime.now(timezone.utc)
+    def mint_token(self, data: models.TokenBase, expires_delta: timedelta | None = None):
         if expires_delta:
             expire = datetime.now(timezone.utc) + expires_delta
+        elif data.exp:
+            expire = data.exp
         else:
-            expire = datetime.now(timezone.utc) + timedelta(minutes=30)
-        to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(to_encode, self.__token_secret, algorithm=ALGORITHM)
+            match data.typ:
+                case models.TokenType.access:
+                    delta = timedelta(minutes=15)
+                case models.TokenType.refresh:
+                    delta = timedelta(minutes=60)
+                case _:
+                    delta = timedelta(minutes=5)
+            expire = datetime.now(timezone.utc) + delta
+
+        to_encode = models.Token( **data.model_dump(exclude_none=True, exclude_defaults=True, exclude_unset=True) )
+        to_encode.iat = datetime.now( timezone.utc )
+        to_encode.exp = expire
+
+        encoded_jwt = jwt.encode(to_encode.model_dump(), self.__token_secret, algorithm=ALGORITHM, json_encoder=UUIDJSONEncoder)
         return encoded_jwt
 
-    def validate_token(self, token:str):
+    def validate_token(self, token:str, require_typ: models.TokenType|None = models.TokenType.access):
         try:
-            payload = jwt.decode(token, self.__token_secret, algorithms=[ALGORITHM])
+            payload = jwt.decode(token, self.__token_secret, algorithms=[ALGORITHM], require=["sub", "exp", "iat", "nbf"])
             username = payload.get('sub')
             if username is None:
                 raise exceptions.InvalidToken()
             
-            # TODO - Make it fail if token is expired the below does not work for that
             exp_time = payload.get('exp')
             if datetime.fromtimestamp(exp_time, timezone.utc) < datetime.now(timezone.utc):
                 raise exceptions.ExpiredToken()
+            
+            validated = models.Token.model_validate(payload)
+            
+            if require_typ and require_typ != validated.typ:
+                raise ValueError('Unexpected token type')
 
-            return payload
+            return validated
+        
         except jwt.ExpiredSignatureError:
             raise exceptions.ExpiredToken()
-        except jwt.InvalidTokenError:
+        except (jwt.InvalidTokenError, jwt.MissingRequiredClaimError, ValueError) as e:
+            logger.warning(f'Failed validating token: {e}')
             if os.environ.get('SATOP_ENABLE_TEST_AUTH'):
                 split = token.split(';')
                 name = split[0]
-                roles = list() if len(split) == 1 else split[1].split(',')
-                payload = {
-                    'sub': '00000000-7e57-4000-a000-000000000000',
-                    'test_name': name,
-                    'test_scopes': roles
-                }
+                roles = [] if len(split) == 1 else split[1].split(',')
+
+                test_token = models.TestToken(
+                    sub = UUID('00000000-7e57-4000-a000-000000000000'),
+                    iat = datetime.now(),
+                    nbf = datetime.now(),
+                    exp = datetime.now() + timedelta(minutes=10),
+                    typ = models.TokenType.access if require_typ is None else require_typ,
+                    test_name = name,
+                    test_scopes = roles
+                )
+                
                 logger.warning(f'Validating test token {token}. Remove "SATOP_ENABLE_TEST_AUTH" from env to disable this. SHOULD NOT BE USED IN PRODUCTION!')
-                return payload
-            raise exceptions.InvalidToken()
+                return test_token
+            raise exceptions.InvalidToken(detail=str(e))
 
     def register_provider(self, provider_key: str, identity_hint: str):
         if provider_key in self.providers:
@@ -133,29 +161,24 @@ class PlatformAuthorization:
 
         return None
 
-    def create_token(self, uuid: UUID, typ = 'access', expires_delta: timedelta | None = None):
-        data = {
-            'sub': str(uuid),
-            'typ': typ
-        }
-        return self.mint_token(data, expires_delta=expires_delta)
+    def create_token(self, uuid: UUID, typ = models.TokenType.access, expires_delta: timedelta | None = None):
+        token = models.TokenBase(
+            sub = uuid,
+            typ = typ
+        )
+
+        return self.mint_token(token, expires_delta=expires_delta)
     
-    def create_refresh_token(self, uuid: UUID, typ = 'refresh', expires_delta: timedelta | None = None):
-        if expires_delta is None:
-            expires_delta = timedelta(minutes=60)
-        data = {
-            'sub': str(uuid),
-            'typ': typ
-        }
-        return self.mint_token(data, expires_delta=expires_delta)
+    def create_refresh_token(self, uuid: UUID, expires_delta: timedelta | None = None):
+        return self.create_token(uuid, models.TokenType.refresh, expires_delta=expires_delta)
     
-    def validate_tokens(self, token: str):
-        try:
-            return self.validate_token(token)
-        except jwt.ExpiredSignatureError:
-            raise exceptions.ExpiredToken()
-        except jwt.InvalidTokenError:
-            raise exceptions.InvalidToken()
+    # def validate_token(self, token: str):
+    #     try:
+    #         return self._validate_token(token)
+    #     except jwt.ExpiredSignatureError:
+    #         raise exceptions.ExpiredToken()
+    #     except jwt.InvalidTokenError:
+    #         raise exceptions.InvalidToken()
 
     def require_login(self, credentials: Annotated[HTTPAuthorizationCredentials|None, Depends(auth_scheme)], request: Request):
         if credentials is None:
@@ -163,7 +186,21 @@ class PlatformAuthorization:
         token = credentials.credentials
         # Validate Token
         payload = self.validate_token(token)
-        _uuid = payload.get('sub')
+        _uuid = payload.sub
+        if not _uuid:
+            raise exceptions.InvalidToken
+        request.state.userid = _uuid
+        request.state.token_payload = payload
+
+        return payload
+
+    def require_refresh(self, credentials: Annotated[HTTPAuthorizationCredentials|None, Depends(auth_scheme)], request: Request):
+        if credentials is None:
+            raise exceptions.MissingCredentials
+        token = credentials.credentials
+        # Validate Token
+        payload = self.validate_token(token, models.TokenType.refresh)
+        _uuid = payload.sub
         if not _uuid:
             raise exceptions.InvalidToken
         request.state.userid = _uuid
@@ -339,3 +376,20 @@ class PlatformAuthorization:
             result = session.exec(statement).all()
         
             return {x.scope for x in result}
+
+    def refresh_tokens(self, refresh_token: str|models.Token):
+        match refresh_token:
+            case str():
+                t = self.validate_token(refresh_token)
+            case models.Token():
+                t = refresh_token
+            case _:
+                raise exceptions.InvalidToken
+
+        if t.typ != models.TokenType.refresh:
+            raise exceptions.InvalidToken
+
+        return models.TokenPair(
+            access_token  = self.create_token(t.sub),
+            refresh_token = self.create_refresh_token(t.sub)
+        )

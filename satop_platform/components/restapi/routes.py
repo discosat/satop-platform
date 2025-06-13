@@ -3,12 +3,13 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 
-from pydantic import BaseModel
 from satop_platform.components.authorization.auth import ProviderDictItem
 from satop_platform.components.authorization import models
 from satop_platform.components.restapi import exceptions
 
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING
+
+from satop_platform.components.authorization.models import Token
 if TYPE_CHECKING:
     from satop_platform.core.satop_application import SatOPApplication
 
@@ -56,6 +57,7 @@ def load_routes(components: SatOPApplication):
 
     @auth_router.get(
         '/entities',
+        dependencies=[Depends(auth.require_scope('satop.auth.entities.list'))],
         summary="List all registered entities",
         description="Get a list of all entities in the authorization system.",
         response_description="A list of entities.")
@@ -64,6 +66,7 @@ def load_routes(components: SatOPApplication):
 
     @auth_router.post(
         '/entities',
+        dependencies=[Depends(auth.require_scope('satop.auth.entities.create'))],
         response_model=models.Entity,  
         summary="Add a new entity",
         description="Register a new entity in the authorization system, including the scopes the new entity should have access to.",
@@ -74,6 +77,7 @@ def load_routes(components: SatOPApplication):
                 
     @auth_router.get(
         '/entities/{uuid}',
+        dependencies=[Depends(auth.require_scope('satop.auth.entities.read'))],
         summary="Get entity details",
         description="Get details for a specific entity.",
         response_description="The details of the specified entity.",
@@ -83,7 +87,8 @@ def load_routes(components: SatOPApplication):
         return api_app.authorization.get_entity_details(uuid)
     
     @auth_router.post(
-            '/entities/{uuid}/provider',
+            '/entities/{uuid}/provider', 
+            dependencies=[Depends(auth.require_scope('satop.auth.entities.connect-idp'))],
             summary="Connect an entity to an identity provider",
             description="""\
 Connect an entity to an identity provider given a identifier that is authenticated by the provider.
@@ -121,6 +126,7 @@ E.g. a user identified by their email address can afterwards be authenticated by
     
     @auth_router.get(
             '/providers/{name}',
+            dependencies=[Depends(auth.require_scope('satop.auth.entities.read'))],
             summary="Get identity provider details",
             description="Get details for a specific identity provider.",
             response_description="The authentication identifiers for the identity provider.",
@@ -166,42 +172,26 @@ E.g. a user identified by their email address can afterwards be authenticated by
     """
 
     @auth_router.get('/refresh_token')
-    async def refresh_access_token(request: Request):
-        """Refresh access token using a valid refresh token"""
-        """
-        try:
-            token = request
-        
-        if not user_data:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
-            
-        new_access_token = create_access_token()
-
-        new_refresh_token = create_refresh_token()
-
-        return JSONResponse(content={
-        "access_token": new_access_token, 
-        "refresh_token": new_refresh_token
-        }) 
-        """
+    async def refresh_access_token(tok: Token = Depends(auth.require_refresh)):
+        return auth.refresh_tokens(tok)
     
     @auth_router.get('/all_scopes', response_model=list[str])
     async def list_all_scopes():
-        return auth.used_scopes
+        return sorted(auth.used_scopes)
     
     @auth_router.get('/roles', response_model=dict[str,list[str]])
     async def list_all_roles():
         return auth.get_roles()
 
-    @auth_router.post('/roles', status_code=201)
+    @auth_router.post('/roles', status_code=201, dependencies=[Depends(auth.require_scope('satop.auth.roles'))])
     async def create_new_role(role: models.NewRole):
         return auth.create_new_role(role.name, role.scopes)
     
-    @auth_router.put('/roles/{role_name}')
+    @auth_router.put('/roles/{role_name}', dependencies=[Depends(auth.require_scope('satop.auth.roles'))])
     async def update_role(role_name: str, role: models.NewRole):
         return auth.update_role(role_name, role.scopes)
     
-    @auth_router.get('/check_my_roles', )
+    @auth_router.get('/check_my_roles')
     async def check_roles(token:dict = Depends(auth.require_login)):
         return auth.get_entity_scopes(UUID(token.get('sub')))
 
