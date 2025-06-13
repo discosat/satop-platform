@@ -111,7 +111,7 @@ def load_routes(components: SatOPApplication):
             raise exceptions.NotFound("Entity not found")
     
     @auth_router.post(
-            '/entities/{uuid}/provider', 
+            '/entities/{uuid}/providers', 
             dependencies=[Depends(auth.require_scope('satop.auth.entities.connect-idp'))],
             summary="Connect an entity to an identity provider",
             description='\n'.join([
@@ -125,6 +125,22 @@ def load_routes(components: SatOPApplication):
             )
     async def connect_entity_idp(uuid: str, provider: models.ProviderIdentityBase) -> models.AuthenticationIdentifiers:
         return api_app.authorization.connect_entity_idp(uuid, provider)
+    
+    @auth_router.get(
+            '/entities/{uuid}/providers', 
+            dependencies=[Depends(auth.require_scope('satop.auth.entities.list-idp'))],
+            summary="List identity providers connected to an entity",
+            )
+    async def list_entitys_idps(uuid: UUID) -> dict[str, list[str]]:
+        return api_app.authorization.get_entity_idps(uuid)
+    
+    @auth_router.delete(
+            '/entities/{uuid}/providers/{provider}/{ident}', 
+            dependencies=[Depends(auth.require_scope('satop.auth.entities.disconnect-idp'))],
+            summary="Unlink an entity from an identity provider",
+            )
+    async def unlink_entity_idp(uuid: UUID, provider: str, ident: str):
+        return api_app.authorization.unlink_identity(models.AuthenticationIdentifiers(provider=provider, identity=ident, entity_id=uuid))
     
     @auth_router.get(
             '/providers',
@@ -207,13 +223,17 @@ def load_routes(components: SatOPApplication):
     async def list_all_roles():
         return auth.get_roles()
 
-    @auth_router.post('/roles', status_code=201, dependencies=[Depends(auth.require_scope('satop.auth.roles'))])
+    @auth_router.post('/roles', status_code=201, dependencies=[Depends(auth.require_scope('satop.auth.roles.edit'))])
     async def create_new_role(role: models.NewRole):
         return auth.create_new_role(role.name, role.scopes)
     
-    @auth_router.put('/roles/{role_name}', dependencies=[Depends(auth.require_scope('satop.auth.roles'))])
+    @auth_router.put('/roles/{role_name}', dependencies=[Depends(auth.require_scope('satop.auth.roles.edit'))])
     async def update_role(role_name: str, role: models.NewRole):
         return auth.update_role(role_name, role.scopes)
+    
+    @auth_router.delete('/roles/{role_name}', dependencies=[Depends(auth.require_scope('satop.auth.roles.edit'))])
+    async def delete_role(role_name: str, role: models.NewRole):
+        return auth.remove_role(role_name)
     
     @auth_router.get('/check_my_roles')
     async def check_roles(token:dict = Depends(auth.require_login)):

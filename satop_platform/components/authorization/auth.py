@@ -290,6 +290,19 @@ class PlatformAuthorization:
                 raise exceptions.NotFound(f"Entity {_uuid} not found")
             
             return entity
+        
+    def get_entity_idps(self, uuid: UUID):
+        with sqlmodel.Session(self.engine) as session:
+            statement = sqlmodel.select(models.AuthenticationIdentifiers).where(models.AuthenticationIdentifiers.entity_id == uuid)
+            idps = session.exec(statement).all()
+
+            identities: dict[str, list[str]] = dict()
+            for idp in idps:
+                if not idp.provider in identities:
+                    identities[idp.provider] = list()
+                identities[idp.provider].append(idp.identity)
+
+            return identities
 
     def connect_entity_idp(self, _uuid: str, provider: models.ProviderIdentityBase):
         aidp = models.AuthenticationIdentifiers(
@@ -304,6 +317,18 @@ class PlatformAuthorization:
             session.refresh(aidp)
         
             return aidp
+    
+    def unlink_identity(self, aidp: models.AuthenticationIdentifiers):
+        with sqlmodel.Session(self.engine) as session:
+            statement = sqlmodel.select(models.AuthenticationIdentifiers)\
+                        .where(models.AuthenticationIdentifiers.provider == aidp.provider)\
+                        .where(models.AuthenticationIdentifiers.identity == aidp.identity)\
+                        .where(models.AuthenticationIdentifiers.entity_id == aidp.entity_id)
+            x = session.exec(statement).one()
+            session.delete(x)
+            session.commit()
+        return
+
 
     def get_identity_providers(self):
         return self.providers
@@ -349,6 +374,18 @@ class PlatformAuthorization:
 
         with sqlmodel.Session(self.engine) as session:
             session.add_all(new_roles)
+            session.commit()
+        
+        return
+
+    def remove_role(self, name:str):
+        with sqlmodel.Session(self.engine) as session:
+            statement = sqlmodel.select(models.RoleScopes).where(models.RoleScopes.role == name)
+            rows = session.exec(statement).all()
+
+            for row in rows:
+                session.delete(row)
+
             session.commit()
         
         return
