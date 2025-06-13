@@ -22,7 +22,7 @@ def auth_cli(auth: auth.PlatformAuthorization):
         new_user = auth.add_entity(EntityBase(
             name=name,
             type=EntityType.person,
-            roles='*'
+            roles='admin'
         ))
 
         print(new_user)

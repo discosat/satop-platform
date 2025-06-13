@@ -8,6 +8,7 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 from sqlalchemy import Engine
+import sqlalchemy.exc
 from sqlmodel import SQLModel
 import sqlmodel
 from datetime import datetime, timedelta, timezone
@@ -214,11 +215,13 @@ class PlatformAuthorization:
         elif isinstance(needed_scopes, Iterable):
             self.used_scopes |= set(needed_scopes)
 
-        def f(token_payload: Annotated[dict, Depends(self.require_login)], request: Request):
-            validated_scopes = token_payload.get('test_scopes')
+        def f(token_payload: Annotated[models.Token|models.TestToken, Depends(self.require_login)], request: Request):
+            validated_scopes = None
+            if isinstance(token_payload, models.TestToken):
+                validated_scopes = token_payload.test_scopes
 
             if validated_scopes is None:
-                validated_scopes = self.get_entity_scopes(UUID(request.state.userid))
+                validated_scopes = self.get_entity_scopes(request.state.userid)
 
             def matches(scope:str|Iterable[str], validated:str):
                 if isinstance(scope, str):
@@ -256,18 +259,27 @@ class PlatformAuthorization:
 
             return new_entity
     
-    def update_entity(self, entity: models.Entity):
+    def update_entity(self, entity_id:UUID, entity: models.EntityBase):
         with sqlmodel.Session(self.engine) as session:
-            ent = session.exec(
-                sqlmodel.select(models.Entity)
-                        .where(models.Entity.id == entity.id)
-            ).one()
-            ent.sqlmodel_update(entity)
+            ent = session.get_one(models.Entity, entity_id)
+            new_data = entity.model_dump(exclude_unset=True)
+            ent.sqlmodel_update(new_data)
             session.add(ent)
             session.commit()
             session.refresh(ent)
 
             return ent
+        
+    def delete_entity(self, uuid: UUID) -> None:
+        with sqlmodel.Session(self.engine) as session:
+            ent = session.exec(
+                sqlmodel.select(models.Entity)
+                        .where(models.Entity.id == uuid)
+            ).one()
+            session.delete(ent)
+            session.commit()
+            
+        return
 
     def get_entity_details(self, _uuid: str):
         with sqlmodel.Session(self.engine) as session:
@@ -276,7 +288,7 @@ class PlatformAuthorization:
 
             if not entity:
                 raise exceptions.NotFound(f"Entity {_uuid} not found")
-
+            
             return entity
 
     def connect_entity_idp(self, _uuid: str, provider: models.ProviderIdentityBase):

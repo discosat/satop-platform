@@ -30,6 +30,12 @@ class EntityBase(SQLModel):
         }
     } # type: ignore
 
+# For use in PATCH request. None indicates attribute is not required
+class EntityUpdate(EntityBase):
+    name: str = None
+    type: EntityType = None
+    roles: str = None
+
 class Entity(EntityBase, table=True):
     __table_args__ = {'extend_existing': True}
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)

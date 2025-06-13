@@ -2,14 +2,14 @@ from __future__ import annotations
 from uuid import UUID
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
+import sqlalchemy.exc
 
-from satop_platform.components.authorization.auth import ProviderDictItem
 from satop_platform.components.authorization import models
+from satop_platform.components.authorization.auth import ProviderDictItem
+from satop_platform.components.authorization.models import Token
 from satop_platform.components.restapi import exceptions
 
 from typing import TYPE_CHECKING
-
-from satop_platform.components.authorization.models import Token
 if TYPE_CHECKING:
     from satop_platform.core.satop_application import SatOPApplication
 
@@ -85,18 +85,42 @@ def load_routes(components: SatOPApplication):
     )
     async def get_entity_details(uuid: str) -> models.Entity:
         return api_app.authorization.get_entity_details(uuid)
+                
+    @auth_router.delete(
+        '/entities/{uuid}',
+        dependencies=[Depends(auth.require_scope('satop.auth.entities.delete'))],
+        summary="Delete an entity",
+        responses={**exceptions.NotFound("Entity not found").response}
+    )
+    async def delete_entity(uuid: UUID) -> None:
+        try:
+            return api_app.authorization.delete_entity(uuid)
+        except sqlalchemy.exc.NoResultFound:
+            raise exceptions.NotFound("Entity not found")
+                
+    @auth_router.patch(
+        '/entities/{uuid}',
+        dependencies=[Depends(auth.require_scope('satop.auth.entities.update'))],
+        summary="Update an entity",
+        responses={**exceptions.NotFound("Entity not found").response},
+    )
+    async def update_entity(uuid: UUID, entity: models.EntityUpdate) -> models.Entity:
+        try:
+            return api_app.authorization.update_entity(uuid, entity)
+        except sqlalchemy.exc.NoResultFound:
+            raise exceptions.NotFound("Entity not found")
     
     @auth_router.post(
             '/entities/{uuid}/provider', 
             dependencies=[Depends(auth.require_scope('satop.auth.entities.connect-idp'))],
             summary="Connect an entity to an identity provider",
-            description="""\
-Connect an entity to an identity provider given a identifier that is authenticated by the provider.
-
-Two entities must not have the same identity with the same provider. 
-
-E.g. a user identified by their email address can afterwards be authenticated by proving they have the corresponding password in the 'email_password' provider.\
-""",
+            description='\n'.join([
+                "Connect an entity to an identity provider given a identifier that is authenticated by the provider.",
+                "",
+                "Two entities must not have the same identity with the same provider. ",
+                "",
+                "E.g. a user identified by their email address can afterwards be authenticated by proving they have the corresponding password in the 'email_password' provider."
+            ]),
             response_description="The authentication identifiers for the entity."
             )
     async def connect_entity_idp(uuid: str, provider: models.ProviderIdentityBase) -> models.AuthenticationIdentifiers:
