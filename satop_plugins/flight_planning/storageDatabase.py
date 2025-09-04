@@ -144,6 +144,36 @@ class StorageDatabase:
             gs_id=flight_plan[3],
             sat_name=flight_plan[4]
         ) for flight_plan in flight_plans]
+
+    # TODO: Needs testing
+    async def get_all_flight_plans_with_ids(self) -> list[dict[str, str | dict]]:
+        """Get all flight plans from the database with their UUIDs
+
+        Returns:
+            list[dict]: A list of dictionaries containing flattened FlightPlan data
+        """
+        # Ensure the connection is open and the flight_plans table exists
+        self.__check_connection()
+        self.__check_table_exists('flight_plans')
+
+        # Create a cursor and execute the query
+        c = self.connection.cursor()
+        c.execute("SELECT * FROM flight_plans")
+        flight_plans = c.fetchall()
+
+        result = []
+        for fp in flight_plans:
+            flight_plan_dict = ast.literal_eval(fp[1])
+            
+            result.append({
+                "id": fp[0],
+                "flight_plan": flight_plan_dict,
+                "datetime": fp[2],
+                "gs_id": fp[3],
+                "sat_name": fp[4]
+            })
+        
+        return result
     
     # TODO: Needs testing
     async def get_approval_index(self, flight_plan_uuid: str) -> FlightPlanStatus:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 from fastapi import FastAPI, APIRouter
+from fastapi.middleware.cors import CORSMiddleware
 import logging
 import uvicorn
 
@@ -26,6 +27,16 @@ class APIApplication:
         self._root_path = self._api_config.get('root_path', '/api') # type: ignore
 
         self.api_app = FastAPI(*args, **kwargs)
+        
+        # Add CORS middleware
+        self.api_app.add_middleware(
+            CORSMiddleware,
+            allow_origins=self._api_config.get('cors_origins', ["*"]),  # Configure in api config or allow all
+            allow_credentials=self._api_config.get('cors_allow_credentials', True),
+            allow_methods=self._api_config.get('cors_allow_methods', ["*"]),  # Allow all methods
+            allow_headers=self._api_config.get('cors_allow_headers', ["*"]),  # Allow all headers
+        )
+        
         self.authorization = app.auth
         self._router = APIRouter(prefix=self._root_path)
 
