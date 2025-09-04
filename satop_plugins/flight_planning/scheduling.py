@@ -122,12 +122,19 @@ class Scheduling(Plugin):
                 '/get/{uuid}',
                 summary="Get a flight plan",
                 description="Get a stored flight plan based on its ID.",
-                response_description="The flight plan",
+                response_description="The flight plan with its ID",
                 status_code=200,
                 dependencies=[Depends(self.platform_auth.require_login)]
                 )
-        async def get_flight_plan(flight_plan_uuid:str, req: Request) -> FlightPlan:
-            return await self.__get_flight_plan(flight_plan_uuid=flight_plan_uuid, user_id=req.state.userid)
+        async def get_flight_plan(uuid: str, req: Request) -> dict[str, str | dict]:
+            flight_plan = await self.__get_flight_plan(flight_plan_uuid=uuid, user_id=req.state.userid)
+            return {
+                "id": uuid,
+                "flight_plan": flight_plan.flight_plan,
+                "datetime": flight_plan.datetime,
+                "gs_id": flight_plan.gs_id,
+                "sat_name": flight_plan.sat_name
+            }
         
         # ##############################
         # Get all flight plans
@@ -136,19 +143,19 @@ class Scheduling(Plugin):
                 '/get_all',
                 summary="Get all flight plans",
                 description="Get all stored flight plans.",
-                response_description="A list of flight plans",
+                response_description="A list of flight plans with their IDs",
                 status_code=200,
                 dependencies=[Depends(self.platform_auth.require_login)]
                 )
-        async def get_all_flight_plans(req: Request) -> list[FlightPlan]:
+        async def get_all_flight_plans(req: Request) -> list[dict[str, str | dict]]:
             user_id = req.state.userid
-            flight_plans = await self.data_base.get_all_flight_plans()
-            if not flight_plans:
+            flight_plans_with_ids = await self.data_base.get_all_flight_plans_with_ids()
+            if not flight_plans_with_ids:
                 logger.debug(f"User '{user_id}' requested all flight plans but none were found")
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No flight plans found')
             
-            logger.debug(f"User '{user_id}' requested all flight plans; Retrieved {len(flight_plans)} flight plans")
-            return flight_plans
+            logger.debug(f"User '{user_id}' requested all flight plans; Retrieved {len(flight_plans_with_ids)} flight plans")
+            return flight_plans_with_ids
 
         
         # ##############################
@@ -163,13 +170,13 @@ class Scheduling(Plugin):
                 status_code=200,
                 dependencies=[Depends(self.platform_auth.require_login)]
                 )
-        async def update_flight_plan(flight_plan_uuid:str, flight_plan:FlightPlan, req: Request) -> dict[str, str]:
+        async def update_flight_plan(uuid: str, flight_plan: FlightPlan, req: Request) -> dict[str, str]:
             user_id = req.state.userid
 
             # Check if the flight plan exist in the database
-            flight_plan_with_datetime = await self.__get_flight_plan(flight_plan_uuid=flight_plan_uuid, user_id=user_id)
+            flight_plan_with_datetime = await self.__get_flight_plan(flight_plan_uuid=uuid, user_id=user_id)
             if not flight_plan_with_datetime:
-                logger.debug(f"Flight plan with uuid '{flight_plan_uuid}' was requested by user '{user_id}' but was not found")
+                logger.debug(f"Flight plan with uuid '{uuid}' was requested by user '{user_id}' but was not found")
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Flight plan not found')
 
             # LOGGING: User updates flight plan - user action and flight plan artifact
@@ -184,7 +191,7 @@ class Scheduling(Plugin):
 
             # -- actual update --
 
-            await self.__update_flight_plan(flight_plan=flight_plan, flight_plan_uuid=flight_plan_uuid)
+            await self.__update_flight_plan(flight_plan=flight_plan, flight_plan_uuid=uuid)
 
             # -- end of update --
 
@@ -203,7 +210,7 @@ class Scheduling(Plugin):
                 )
             )
 
-            logger.info(f"Flight plan updated; flight plan id: {flight_plan_uuid}")
+            logger.info(f"Flight plan updated; flight plan id: {uuid}")
 
             return {"message": "Flight plan updated"}
             
@@ -227,28 +234,28 @@ If the flight plan is approved, a message will first return to the sender acknow
                 status_code=202, 
                 dependencies=[Depends(self.platform_auth.require_login)]
                 )
-        async def approve_flight_plan(flight_plan_uuid:str, approved:bool, request: Request, background_tasks: BackgroundTasks) -> dict[str, str]: # TODO: maybe require the GS id here instead.
+        async def approve_flight_plan(uuid: str, approved: bool, request: Request, background_tasks: BackgroundTasks) -> dict[str, str]: # TODO: maybe require the GS id here instead.
             user_id = request.state.userid
 
-            _flightplan_with_datetime: FlightPlan = await self.__get_flight_plan(flight_plan_uuid=flight_plan_uuid, user_id=user_id)
-            _approved_flight_plan: FlightPlanStatus | None = await self.data_base.get_approval_index(flight_plan_uuid=flight_plan_uuid) 
+            _flightplan_with_datetime: FlightPlan = await self.__get_flight_plan(flight_plan_uuid=uuid, user_id=user_id)
+            _approved_flight_plan: FlightPlanStatus | None = await self.data_base.get_approval_index(flight_plan_uuid=uuid) 
 
             if not _flightplan_with_datetime:
-                logger.debug(f"Flight plan with uuid '{flight_plan_uuid}' was requested by user '{user_id}' but was not found")
+                logger.debug(f"Flight plan with uuid '{uuid}' was requested by user '{user_id}' but was not found")
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Flight plan not found or not scheduled for approval')
 
             if not _approved_flight_plan:
-                logger.debug(f"Flight plan with uuid '{flight_plan_uuid}' was requested by user '{user_id}' but was not found in the approval index")
+                logger.debug(f"Flight plan with uuid '{uuid}' was requested by user '{user_id}' but was not found in the approval index")
                 pass
             elif _approved_flight_plan.approval_status:
-                logger.debug(f"""Flight plan with uuid '{flight_plan_uuid}' was approved by user: '{user_id}', 
+                logger.debug(f"""Flight plan with uuid '{uuid}' was approved by user: '{user_id}', 
                              but has already been approved by user: '{_approved_flight_plan.approver}' at datetime: '{_approved_flight_plan.approval_date}'""")
                 return {"message": "Flight plan already approved"}
                 
             
-            await self.__update_approval(flight_plan_uuid, user_id, approved)
+            await self.__update_approval(uuid, user_id, approved)
             if not approved:
-                logger.debug(f"Flight plan with uuid '{flight_plan_uuid}' was not approved by user: {user_id}")
+                logger.debug(f"Flight plan with uuid '{uuid}' was not approved by user: {user_id}")
                 self.sys_log.log_event(models.Event(
                     descriptor='FlightplanApprovalEvent',
                     relationships=[
@@ -258,13 +265,13 @@ If the flight plan is approved, a message will first return to the sender acknow
                             ),
                         models.EventObjectRelationship(
                             predicate=models.Predicate(descriptor='rejected'),
-                            object=models.Artifact(sha1=flight_plan_uuid)
+                            object=models.Artifact(sha1=uuid)
                             )
                         ]
                     )
                 )
                 return {"message": "Flight plan not approved by user"}
-            logger.debug(f"Flight plan with uuid '{flight_plan_uuid}' was approved by user: {user_id}")
+            logger.debug(f"Flight plan with uuid '{uuid}' was approved by user: {user_id}")
 
             
             logger.debug(f"found flight plan: {_flightplan_with_datetime}")
@@ -272,7 +279,7 @@ If the flight plan is approved, a message will first return to the sender acknow
             # Compile the flight plan
             compiled_plan, artifact_id = await self.call_function("Compiler","compile", _flightplan_with_datetime.flight_plan, user_id)
             
-            background_tasks.add_task(self._do_send_to_gs, flight_plan_uuid, compiled_plan, artifact_id, user_id)
+            background_tasks.add_task(self._do_send_to_gs, uuid, compiled_plan, artifact_id, user_id)
 
             return {"message": "Flight plan approved and scheduled for transmission to ground station."}
 
