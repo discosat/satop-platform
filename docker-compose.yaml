@@ -1,0 +1,66 @@
+services:
+  platform:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      target: deploy
+    ports:
+      - "7889:7889"
+    volumes:
+      - ./docker/data:/satop/data
+
+  all_plugins:
+    extends: platform
+    volumes:
+      - ./satop_plugins:/satop/data/plugins
+    command: --install-plugin-requirements
+
+  dev:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      target: devel
+    ports:
+      - "7889:7889"
+    volumes:
+      - .:/satop
+      - ./docker/data:/satop/data
+    working_dir: /satop
+    environment:
+      - SATOP_DATA_ROOT=/satop/docker/data
+      - PYTHONPATH=/satop
+    user: root
+    entrypoint:
+      - "bash"
+      - "-c"
+      - "pip install -e . && python -m satop_platform -vv --install-plugin-requirements"
+
+  devcontainer:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      target: devel
+    ports:
+      - "7889:7889"
+    volumes:
+      - .:/ws
+      - ./docker/data:/satop/data
+    environment:
+      - SATOP_DATA_ROOT=/satop/data
+    command: ["sleep", "infinity"]
+
+  test:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      target: devel
+    volumes:
+      - .:/satop
+      - ./docker/data:/satop/data
+    working_dir: /satop
+    environment:
+      - PYTHONPATH=/satop
+      - SATOP_DATA_ROOT=/satop/docker/data
+    user: root
+    command: >
+      bash -c "pip install -e '.[test]' && pytest test/pytest"

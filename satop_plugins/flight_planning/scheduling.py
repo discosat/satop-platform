@@ -1,8 +1,8 @@
 import io
 import os
 from fastapi import APIRouter, Depends, Request, HTTPException, status, BackgroundTasks
+from fastapi.concurrency import run_in_threadpool
 import logging
-
 import sqlalchemy
 import sqlite3
 
@@ -20,19 +20,19 @@ logger = logging.getLogger('plugin.scheduling')
 
 
 class Scheduling(Plugin):
-    def __init__(self, *args, **kwargs):
-        plugin_dir = os.path.dirname(os.path.realpath(__file__))
-        super().__init__(plugin_dir, *args, **kwargs)
+    def __init__(self, plugin_dir=None, app=None, data_dir=None, *args, **kwargs):
+        if plugin_dir is None:
+            plugin_dir = os.path.dirname(os.path.realpath(__file__))
+        
+        super().__init__(plugin_dir, app, data_dir)
 
         if not self.check_required_capabilities(['http.add_routes']):
             raise RuntimeError
 
         self.api_router = APIRouter()
-
         self.data_dir = os.path.join(plugin_dir, 'data')
         os.makedirs(self.data_dir, exist_ok=True)
-
-        self.data_base = None
+        self.data_base: StorageDatabase | None = None
 
         # ##############################
         # Save a flight plan
@@ -45,7 +45,7 @@ class Scheduling(Plugin):
                 status_code=201, 
                 dependencies=[Depends(self.platform_auth.require_login)]
                 )
-        async def new_flihtplan_schedule(flight_plan:FlightPlan, req: Request) -> dict[str, str] | str:
+        async def new_flightplan_schedule(flight_plan:FlightPlan, req: Request) -> dict[str, str] | str:
             user_id = req.state.userid
 
             if flight_plan.sat_name is None or flight_plan.sat_name == "":
@@ -128,6 +128,9 @@ class Scheduling(Plugin):
                 )
         async def get_flight_plan(uuid: str, req: Request) -> dict[str, str | dict]:
             flight_plan = await self.__get_flight_plan(flight_plan_uuid=uuid, user_id=req.state.userid)
+            if flight_plan is None:
+                raise HTTPException(status_code=404, detail="Flight plan not found")
+
             return {
                 "id": uuid,
                 "flight_plan": flight_plan.flight_plan,
@@ -149,7 +152,7 @@ class Scheduling(Plugin):
                 )
         async def get_all_flight_plans(req: Request) -> list[dict[str, str | dict]]:
             user_id = req.state.userid
-            flight_plans_with_ids = await self.data_base.get_all_flight_plans_with_ids()
+            flight_plans_with_ids = await run_in_threadpool(self.data_base.get_all_flight_plans_with_ids)
             if not flight_plans_with_ids:
                 logger.debug(f"User '{user_id}' requested all flight plans but none were found")
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No flight plans found')
@@ -221,14 +224,14 @@ class Scheduling(Plugin):
                 '/approve/{uuid}', 
                 summary="Approve a flight plan for transmission to a ground station",
                 description=
-"""
-Approve or reject a flight plan for transmission to a ground station.
-The flight plan is identified by the UUID provided in the URL.
+            """
+            Approve or reject a flight plan for transmission to a ground station.
+            The flight plan is identified by the UUID provided in the URL.
 
-If the flight plan is rejected, it will not be sent to the ground station and will be removed from the local list of flight plans missing approval.
+            If the flight plan is rejected, it will not be sent to the ground station and will be removed from the local list of flight plans missing approval.
 
-If the flight plan is approved, a message will first return to the sender acknowledging that the request was received, and then the approved flight plan will be compiled and sent to the ground station.
-""",
+            If the flight plan is approved, a message will first return to the sender acknowledging that the request was received, and then the approved flight plan will be compiled and sent to the ground station.
+            """,
                 response_description="A message indicating the result of the approval",
                 # responses={**exceptions.NotFound("Flight plan not found").response},
                 status_code=202, 
@@ -238,7 +241,7 @@ If the flight plan is approved, a message will first return to the sender acknow
             user_id = request.state.userid
 
             _flightplan_with_datetime: FlightPlan = await self.__get_flight_plan(flight_plan_uuid=uuid, user_id=user_id)
-            _approved_flight_plan: FlightPlanStatus | None = await self.data_base.get_approval_index(flight_plan_uuid=uuid) 
+            _approved_flight_plan: FlightPlanStatus | None = await run_in_threadpool(self.data_base.get_approval_index, flight_plan_uuid=uuid)
 
             if not _flightplan_with_datetime:
                 logger.debug(f"Flight plan with uuid '{uuid}' was requested by user '{user_id}' but was not found")
@@ -367,58 +370,36 @@ If the flight plan is approved, a message will first return to the sender acknow
         return await self.gs_connector.send_control(gs_id, frame)
 
 
-    async def __save_flight_plan(self, flight_plan:FlightPlan, flight_plan_uuid:str, user_id:str) -> str | None:
-        """Save a flight plan in the database
-
-        Args:
-            flight_plan (FlightPlan): The flight plan to save
-        """
-        _existing_flight_plan: FlightPlan | None = None
-        try:
-            _existing_flight_plan = await self.__get_flight_plan(flight_plan_uuid, user_id=user_id)
-        except HTTPException as e:
-            if not e.status_code == status.HTTP_404_NOT_FOUND:
-                # If the flight plan is not found, it is not an error
-                # This is to ensure no problems with __get_flight_plan()
-                raise e
+    async def __save_flight_plan(self, flight_plan: FlightPlan, flight_plan_uuid: str, user_id: str) -> str | None:
+        _existing_flight_plan = await self.__get_flight_plan(flight_plan_uuid, user_id)
+        if _existing_flight_plan:
+            logger.debug(f"Flight plan with ID: '{flight_plan_uuid}' already exists")
+            return "Flight plan already exists"
         
         try:
-            if _existing_flight_plan:
-                logger.debug(f"Flight plan with ID: '{flight_plan_uuid}' already exists")
-                return f"Flight plan already exists"
-                # raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Flight plan already exists')
-            
-            await self.data_base.save_flight_plan(flight_plan, flight_plan_uuid)
-            logger.debug(f"Saved flight plan with ID: '{flight_plan_uuid}': \n{flight_plan}")
-        except HTTPException as e:
-            raise e
+            await run_in_threadpool(self.data_base.save_flight_plan, flight_plan, flight_plan_uuid)
+            logger.debug(f"Saved flight plan with ID: '{flight_plan_uuid}'")
+            return None
         except Exception as e:
-            logger.error(f"Failed to save flight plan with ID: '{flight_plan_uuid}': \n{flight_plan}")
-            logger.error(f"Error: {e}")
+            logger.error(f"Failed to save flight plan with ID: '{flight_plan_uuid}': {e}")
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Failed to save flight plan')
         
-    async def __save_approval(self, flight_plan_uuid:str, user_id:str) -> str | None:
-        """Save the approval of a flight plan
+    async def __save_approval(self, flight_plan_uuid: str, user_id: str) -> str | None:
+        approval_exists = await run_in_threadpool(self.data_base.get_approval_index, flight_plan_uuid)
+        if approval_exists:
+            logger.debug(f"Approval index for flight plan '{flight_plan_uuid}' already exists")
+            return "Approval index already exists"
 
-        Args:
-            flight_plan_uuid (str): The ID of the flight plan
-            user_id (str): The ID of the user
-        """
-        
         try:
-            if await self.data_base.get_approval_index(flight_plan_uuid):
-                logger.debug(f"Approval index of flight plan with ID: '{flight_plan_uuid}' already exists")
-                return "Approval index already exists"
-                # raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Approval already exists')
-
-            await self.data_base.save_approval(flight_plan_uuid, user_id)
-            logger.debug(f"Saved approval of flight plan with ID: '{flight_plan_uuid}', approved by user: '{user_id}'")
+            await run_in_threadpool(self.data_base.save_approval, flight_plan_uuid, user_id)
+            logger.debug(f"Saved approval for flight plan '{flight_plan_uuid}'")
+            return None
         except Exception as e:
-            logger.error(f"Failed to save approval of flight plan with ID: '{flight_plan_uuid}', approval attempted by user: '{user_id}'")
+            logger.error(f"Failed to save approval for flight plan '{flight_plan_uuid}': {e}")
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Failed to save approval')
 
 
-    async def __update_flight_plan(self, flight_plan:FlightPlan, flight_plan_uuid:str) -> None:
+    async def __update_flight_plan(self, flight_plan: FlightPlan, flight_plan_uuid: str) -> None:
         # """Update a flight plan based on its ID
 
         # Args:
@@ -433,81 +414,39 @@ If the flight plan is approved, a message will first return to the sender acknow
         #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Failed to update flight plan')
         
         # TODO: Rethink how updates should occur (if a flight_plan is updated, a new one should be created and the old one should be marked as outdated or deleted instead... "Updating" is misleading as a new ID should be created every time a flight plan changes) 
-        logger.error(f"Update flight plan not implemented yet")
+        logger.error("Update flight plan not implemented yet")
         raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail='Update flight plan not implemented yet')
     
 
-    async def __update_approval(self, flight_plan_uuid:str, user_id:str, approved:bool) -> None:
-        """Update the approval of a flight plan
-
-        Args:
-            flight_plan_uuid (str): The ID of the flight plan
-            user_id (str): The ID of the user
-        """
+    async def __update_approval(self, flight_plan_uuid: str, user_id: str, approved: bool) -> None:
         try:
-            
-            _existing_approval: FlightPlanStatus | None = await self.data_base.get_approval_index(flight_plan_uuid)
-            # TODO: Either make it possible to update the approval when it has already been handled or make a DELETE method and API endpoint to remove the approval
-            if not _existing_approval.approval_status == None:
-                logger.debug(f"Flight plan with ID: '{flight_plan_uuid}' has already been handled by user: '{_existing_approval.approver}'")
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'Flight plan already handled by user {_existing_approval.approver}; it was {"" if _existing_approval.approval_status else "not "}approved')
+            _existing_approval = await run_in_threadpool(self.data_base.get_approval_index, flight_plan_uuid)
+            if _existing_approval and _existing_approval.approval_status is not None:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'Flight plan already handled by user {_existing_approval.approver}')
 
-
-
-            await self.data_base.update_approval(flight_plan_uuid, approved, user_id)
-            logger.debug(f"Updated approval of flight plan with ID: '{flight_plan_uuid}', approved by user: '{user_id}'")
-        except HTTPException as e:
-            raise e
+            await run_in_threadpool(self.data_base.update_approval, flight_plan_uuid, approved, user_id)
+            logger.debug(f"Updated approval of flight plan with ID: '{flight_plan_uuid}'")
+        except HTTPException:
+            raise
         except Exception as e:
-            logger.error(f"Failed to update approval of flight plan with ID: '{flight_plan_uuid}', approval attempted by user: '{user_id}'")
+            logger.error(f"Failed to update approval of flight plan with ID '{flight_plan_uuid}': {e}")
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Failed to update approval')
 
-    async def __get_flight_plan(self, flight_plan_uuid:str, user_id:str) -> FlightPlan | None:
-        """Get a flight plan based on its ID
-
-        Args:
-            flight_plan_uuid (str): The ID of the flight plan
-
-        Returns:
-            FlightPlan: The flight plan
-        """
+    async def __get_flight_plan(self, flight_plan_uuid: str, user_id: str) -> FlightPlan | None:
         try:
-            _existing_flight_plan: FlightPlan | None = await self.data_base.get_flight_plan(flight_plan_uuid)
-            if not _existing_flight_plan:
-                logger.debug(f"Flight plan with ID: '{flight_plan_uuid}' not found")
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Flight plan not found')
-            
-            logger.debug(f"User '{user_id}' requested flightplan with uuid: '{flight_plan_uuid}'; Retrieved flightplan with uuid: '{flight_plan_uuid}'")
-            return _existing_flight_plan
-        except HTTPException as e:
-            logger.error(f"Failed to get flight plan with ID: '{flight_plan_uuid}'")
-            raise e
+            # Use run_in_threadpool to call the synchronous DB method
+            flight_plan = await run_in_threadpool(self.data_base.get_flight_plan, flight_plan_uuid)
+            return flight_plan
         except Exception as e:
-            logger.error(f"Failed to get flight plan with ID: '{flight_plan_uuid}'")
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Failed to get flight plan')
+            logger.error(f"Unexpected database error getting flight plan with ID '{flight_plan_uuid}': {e}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Database error')
         
     
     def startup(self):
-        """Startup protocol for the plugin
-        """
         super().startup()
-        logger.info(f"Running '{self.name}' statup protocol")
-
-        # TODO: Implement database connection test without using the plugin engine OR add await everywhere (This needs more thought) ... Maybe a seperate process or thread can be used.
-        # logger.debug(f"Testing database connection")
-        # database_tester = StorageDatabase(self.data_dir)
-        # database_tester.__test_database(logger=logger)
-        # logger.debug(f"Database connection test passed")
-        
+        logger.info(f"Running '{self.name}' startup protocol")
         self.data_base = StorageDatabase(self.data_dir)
     
     def shutdown(self):
-        """Shutdown protocol for the plugin
-        """
         super().shutdown()
         logger.info(f"'{self.name}' Shutting down gracefully")
-        try:
-            self.data_base.close_connection()
-        except Exception as e:
-            logger.error(f"Failed to close database connection: {e}")
-            raise e
