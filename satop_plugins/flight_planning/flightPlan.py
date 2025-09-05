@@ -1,7 +1,16 @@
 from datetime import datetime
-from typing import Any, Dict, List
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
+
+
+class FlightPlanStatusEnum(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    SUPERSEDED = "superseded"
+    TRANSMITTED = "transmitted"
 
 
 class FlightPlanDetail(BaseModel):
@@ -10,12 +19,13 @@ class FlightPlanDetail(BaseModel):
 
 
 class FlightPlan(BaseModel):
-    id: str | None = None
+    id: Optional[str] = None
     flight_plan: FlightPlanDetail
     datetime: datetime
     gs_id: str
     sat_name: str
-    status: str | None = None
+    status: FlightPlanStatusEnum = FlightPlanStatusEnum.PENDING
+    previous_plan_id: Optional[str] = None
 
     model_config = {
         "json_schema_extra": {
@@ -40,7 +50,7 @@ class FlightPlan(BaseModel):
     }
 
 
-class FlightPlanStatus(BaseModel):
+class FlightPlanApproval(BaseModel):
     flight_plan_uuid: str
     approval_status: bool | None
     approver: str | None
