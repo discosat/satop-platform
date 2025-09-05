@@ -1,23 +1,20 @@
-import os
-import logging
-from hashlib import scrypt
 import datetime as dt
+import logging
+import os
 from base64 import b64encode
-from uuid import uuid4, UUID
+from hashlib import scrypt
+from uuid import UUID, uuid4
 
+import sqlalchemy.exc
 import sqlmodel
-import sqlalchemy.exc 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import Response
-
-from satop_platform.plugin_engine.plugin import AuthenticationProviderPlugin
-from satop_platform.components.restapi import exceptions
-from satop_platform.core import config
+from fastapi import APIRouter, HTTPException, status
 
 # from .password_authentication_provider import models
 from pydantic import BaseModel
-
 from satop_platform.components.authorization.models import TokenPair
+from satop_platform.components.restapi import exceptions
+from satop_platform.plugin_engine.plugin import AuthenticationProviderPlugin
+
 
 class HashedAPIKeys(sqlmodel.SQLModel, table=True):
     application_id: UUID = sqlmodel.Field(primary_key=True)
@@ -27,69 +24,80 @@ class HashedAPIKeys(sqlmodel.SQLModel, table=True):
     salt: bytes
     expiry: dt.datetime | None
 
+
 class KeyCredentials(BaseModel):
     application_id: UUID
     api_key: str
 
+
 class CreateKeyModel(BaseModel):
     system_id: str
     key_hint: str
-    expiry: dt.datetime | None = sqlmodel.Field(default_factory=lambda: dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=365))
+    expiry: dt.datetime | None = sqlmodel.Field(
+        default_factory=lambda: dt.datetime.now(dt.timezone.utc)
+        + dt.timedelta(days=365)
+    )
+
 
 class CreatedKeyModel(BaseModel):
     system_id: str
     application_id: UUID
     api_key: str
     key_hint: str
-    expiry: dt.datetime|None
+    expiry: dt.datetime | None
 
-logger = logging.getLogger('plugin.api_key_auth')
+
+logger = logging.getLogger("plugin.api_key_auth")
+
 
 class APIKeyAuth(AuthenticationProviderPlugin):
     def __init__(self, *args, **kwargs):
         plugin_dir = os.path.dirname(os.path.realpath(__file__))
         super().__init__(plugin_dir, *args, **kwargs)
-        
-        engine_path = self.data_dir / 'api_keys.db'
+
+        engine_path = self.data_dir / "api_keys.db"
         engine_path.parent.mkdir(exist_ok=True, parents=True)
-        self.sql_engine = sqlmodel.create_engine('sqlite:///'+str(engine_path))
-        
+        self.sql_engine = sqlmodel.create_engine("sqlite:///" + str(engine_path))
+
         # sqlmodel.SQLModel.metadata.create_all(self.sql_engine)
         # if not inspect(self.sql_engine).has_table(HashedCredentials.__tablename__):
         HashedAPIKeys.__table__.create(self.sql_engine, checkfirst=True)
 
-        self.api_router = APIRouter(prefix='/api_key', tags=['Authentication'])
+        self.api_router = APIRouter(prefix="/api_key", tags=["Authentication"])
 
-        @self.api_router.post('/token',
-                              response_model=TokenPair,
-                              summary='Request an access and refresh token.',
-                              description='Obtain a new access token by providing valid user credentials (email and password).',
-                              response_description='A fresh JWT token.',
-                              responses= {
-                                  **exceptions.InvalidCredentials().response
-                              })
+        @self.api_router.post(
+            "/token",
+            response_model=TokenPair,
+            summary="Request an access and refresh token.",
+            description="Obtain a new access token by providing valid user credentials (email and password).",
+            response_description="A fresh JWT token.",
+            responses={**exceptions.InvalidCredentials().response},
+        )
         async def __create_token(credentials: KeyCredentials):
             if self.validate(credentials):
                 with sqlmodel.Session(self.sql_engine) as session:
-                    statement = sqlmodel.select(HashedAPIKeys).where(HashedAPIKeys.application_id == credentials.application_id)
+                    statement = sqlmodel.select(HashedAPIKeys).where(
+                        HashedAPIKeys.application_id == credentials.application_id
+                    )
                     key = session.exec(statement).one()
                     system_id = key.system_id
                 return self.create_token_pair(uuid=UUID(system_id))
 
-        @self.api_router.post('/create_key',
-                              status_code=status.HTTP_201_CREATED,
-                              summary='Create new key.',
-                              description='Register a new application and create an API key.',
-                              response_model=CreatedKeyModel,
-                              responses= {
-                                #   status.HTTP_409_CONFLICT: {
-                                #       'description': 'User already exists',
-                                #   },
-                              },
-                            #   dependencies=[
-                            #       Depends(auth_scope(['users.create']))
-                            #   ]
-                             )
+        @self.api_router.post(
+            "/create_key",
+            status_code=status.HTTP_201_CREATED,
+            summary="Create new key.",
+            description="Register a new application and create an API key.",
+            response_model=CreatedKeyModel,
+            responses={
+                #   status.HTTP_409_CONFLICT: {
+                #       'description': 'User already exists',
+                #   },
+            },
+            #   dependencies=[
+            #       Depends(auth_scope(['users.create']))
+            #   ]
+        )
         async def __create_key(credentials: CreateKeyModel):
             with sqlmodel.Session(self.sql_engine) as session:
 
@@ -104,7 +112,7 @@ class APIKeyAuth(AuthenticationProviderPlugin):
                     key_hint=credentials.key_hint,
                     key_hash=hashed_key,
                     salt=salt,
-                    expiry=credentials.expiry
+                    expiry=credentials.expiry,
                 )
 
                 try:
@@ -116,17 +124,19 @@ class APIKeyAuth(AuthenticationProviderPlugin):
                         application_id=app_id,
                         key_hint=credentials.key_hint,
                         api_key=key,
-                        expiry=credentials.expiry
+                        expiry=credentials.expiry,
                     )
                 except sqlalchemy.exc.IntegrityError:
-                    raise HTTPException(status.HTTP_409_CONFLICT, 'User already exists')
+                    raise HTTPException(status.HTTP_409_CONFLICT, "User already exists")
 
-    def validate(self, credentials: KeyCredentials) -> bool: 
+    def validate(self, credentials: KeyCredentials) -> bool:
         with sqlmodel.Session(self.sql_engine) as session:
-            statement = sqlmodel.select(HashedAPIKeys).where(HashedAPIKeys.application_id == credentials.application_id)
+            statement = sqlmodel.select(HashedAPIKeys).where(
+                HashedAPIKeys.application_id == credentials.application_id
+            )
             key = session.exec(statement).first()
 
-        salt = b'\0'*16
+        salt = b"\0" * 16
         if key:
             salt = key.salt
 
@@ -134,23 +144,26 @@ class APIKeyAuth(AuthenticationProviderPlugin):
 
         if key and calculated_hash == key.key_hash:
             return key.expiry is None or key.expiry > dt.datetime.now()
-        
+
         return False
-    
+
     @AuthenticationProviderPlugin.register_function
-    def validate_api_key(self, application_id:UUID|str, api_key: str):
+    def validate_api_key(self, application_id: UUID | str, api_key: str):
         if isinstance(application_id, str):
             application_id = UUID(application_id)
-            
-        if self.validate(KeyCredentials(application_id=application_id, api_key=api_key)):
+
+        if self.validate(
+            KeyCredentials(application_id=application_id, api_key=api_key)
+        ):
             with sqlmodel.Session(self.sql_engine) as session:
-                statement = sqlmodel.select(HashedAPIKeys).where(HashedAPIKeys.application_id == application_id)
+                statement = sqlmodel.select(HashedAPIKeys).where(
+                    HashedAPIKeys.application_id == application_id
+                )
                 key = session.exec(statement).one()
                 return key.system_id
 
         else:
             return None
-        
 
     def hash_function(self, password: bytes | str, salt: bytes | str):
         # OWASP recommendation: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
@@ -159,7 +172,7 @@ class APIKeyAuth(AuthenticationProviderPlugin):
             password = password.encode()
         if isinstance(salt, str):
             salt = salt.encode()
-        
+
         n = 2**17
         r = 8
         p = 1

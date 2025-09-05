@@ -65,3 +65,17 @@ services:
     user: root
     command: >
       bash -c "pip install -e '.[test]' && pytest test/pytest"
+  
+  lint:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      target: devel
+    volumes:
+      - .:/satop
+    working_dir: /satop
+    environment:
+      - PYTHONPATH=/satop
+    user: root
+    command: >
+      bash -c "pip install -e '.[lint]' && ruff check . && black --check . && mypy ."

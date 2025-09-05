@@ -4,6 +4,7 @@ import importlib
 import logging
 import os
 import re
+import site
 import subprocess
 import sys
 import traceback
@@ -12,19 +13,17 @@ from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional
-import site
 from uuid import UUID
 
 import networkx as nx
-import yaml
 import typer
+import yaml
 
 import satop_platform.core.config
+from satop_platform.components.authorization.models import TokenPair
 from satop_platform.components.restapi import exceptions
 from satop_platform.core.config import merge_dicts
 from satop_platform.plugin_engine.plugin import AuthenticationProviderPlugin, Plugin
-
-from satop_platform.components.authorization.models import TokenPair
 
 if TYPE_CHECKING:
     from satop_platform.core.satop_application import SatOPApplication
@@ -56,7 +55,7 @@ class SatopPluginEngine:
 
         logger.debug(self.app.event_manager.subscriptions)
 
-        self.cli = typer.Typer(name='plugin')
+        self.cli = typer.Typer(name="plugin")
 
         @self.cli.command()
         def install_all_requirements():
@@ -98,18 +97,18 @@ class SatopPluginEngine:
 
         disabled_plugins = []
         if (user_plugins / "disabled.txt").exists():
-            logger.debug('Loading disabled plugins')
-            with open(user_plugins / "disabled.txt", 'r') as f:
+            logger.debug("Loading disabled plugins")
+            with open(user_plugins / "disabled.txt", "r") as f:
                 lines = f.readlines()
                 for l in lines:
                     ls = l.strip()
-                    if len(ls) == 0 or ls[0] == '#':
+                    if len(ls) == 0 or ls[0] == "#":
                         continue
                     disabled_plugins.append(ls)
         else:
-            logger.debug('No disabled.txt file found')
+            logger.debug("No disabled.txt file found")
         if disabled_plugins:
-            logger.debug(f'Disabled plugins: {disabled_plugins}')
+            logger.debug(f"Disabled plugins: {disabled_plugins}")
 
         plugin_paths: list[Path] = []
         for plugin_path in chain(default_plugins.glob("*/"), user_plugins.glob("*/")):
@@ -124,8 +123,13 @@ class SatopPluginEngine:
                     assert "name" in config
                     plugin_name = config.get("name")
 
-                    if plugin_path.parts[-1] in disabled_plugins or plugin_name in disabled_plugins:
-                        logger.info(f'Plugin {plugin_name} found but has been disabled and will not be loaded')
+                    if (
+                        plugin_path.parts[-1] in disabled_plugins
+                        or plugin_name in disabled_plugins
+                    ):
+                        logger.info(
+                            f"Plugin {plugin_name} found but has been disabled and will not be loaded"
+                        )
                         continue
 
                     self._plugins[plugin_name] = PluginDictItem(
@@ -180,26 +184,26 @@ class SatopPluginEngine:
         for req in all_requirements:
             try:
                 logger.info(f"Installing requirements: {all_requirements}")
-                pip_install_args = ['pip', 'install']
+                pip_install_args = ["pip", "install"]
 
                 if req.startswith("git+"):
                     logger.warning(
                         f"Git requirement '{req}' will be upgraded to latest version"
                     )
-                    pip_install_args.append('--upgrade')
+                    pip_install_args.append("--upgrade")
                     # subprocess.check_call(["pip", "install", "--upgrade", req])
                 else:
                     # subprocess.check_call(["pip", "install", req])
                     pass
-                
+
                 is_venv = sys.prefix != sys.base_prefix
                 writeable_sitepackages = os.access(site.getsitepackages()[0], os.W_OK)
 
                 if not (is_venv or writeable_sitepackages):
-                    pip_install_args.append('--user')
-                
+                    pip_install_args.append("--user")
+
                 subprocess.check_call(pip_install_args + [req])
-                
+
                 logger.info("Successfully installed all requirements.")
             except subprocess.CalledProcessError as e:
                 logger.error(f"Failed to install requirements: {e}")
@@ -226,7 +230,7 @@ class SatopPluginEngine:
                     / "plugin_data"
                     / plugin_name
                 )
-                plugin_instance:Plugin = module.PluginClass(
+                plugin_instance: Plugin = module.PluginClass(
                     data_dir=plugin_data_dir, app=self.app
                 )
 
@@ -243,7 +247,7 @@ class SatopPluginEngine:
                 plugin_info.instance = plugin_instance
 
                 if plugin_instance.cli:
-                    logger.debug(f'Registering CLI for plugin {plugin_name}')
+                    logger.debug(f"Registering CLI for plugin {plugin_name}")
                     self.cli.add_typer(plugin_instance.cli)
 
                 # Set the API router, if any
@@ -260,7 +264,7 @@ class SatopPluginEngine:
                             f"{plugin_name} has created a route but does not have the required capabilities to mount it. Ensure it has 'http.add_routes' in the plugin's 'config.yaml'"
                         )
                 if "security.authentication_provider" in caps:
-                    assert(isinstance(plugin_instance, AuthenticationProviderPlugin))
+                    assert isinstance(plugin_instance, AuthenticationProviderPlugin)
                     self._register_authentication_plugins(plugin_instance)
 
                 logger.info(f"Loaded plugin: {plugin_name}")
@@ -294,7 +298,9 @@ class SatopPluginEngine:
 
         num_routes = len(router.routes)
         if num_routes > 0:
-            logger.info(f"Mounting {num_routes} API routes from plugin '{plugin_name}'.")
+            logger.info(
+                f"Mounting {num_routes} API routes from plugin '{plugin_name}'."
+            )
             self.app.api.mount_plugin_router(url_friendly_name, router)
 
     def _register_authentication_plugins(
@@ -314,25 +320,24 @@ class SatopPluginEngine:
 
         # Register provider
         self.app.auth.register_provider(provider_key, identifier_hint)
-            
+
         def _create_token_pair(user_id: str | None = None, uuid: UUID | None = None):
             if user_id:
                 uuid = self.app.auth.get_uuid(provider_key, user_id)
                 if uuid is None:
                     raise exceptions.InvalidCredentials
-                            
+
             elif uuid:
                 pass
 
             else:
                 raise RuntimeError
-            
+
             return TokenPair(
-                access_token = self.app.auth.create_token(uuid),
-                refresh_token = self.app.auth.create_refresh_token(uuid)
+                access_token=self.app.auth.create_token(uuid),
+                refresh_token=self.app.auth.create_refresh_token(uuid),
             )
 
-        
         def _validate_token(token: str):
             payload = self.app.auth.validate_token(token)
             return payload
@@ -394,9 +399,7 @@ class SatopPluginEngine:
                 if function_name:
                     plug = self._plugins.get(name)
                     if plug is None:
-                        logger.error(
-                            f'Plugin not found "{name}"'
-                        )
+                        logger.error(f'Plugin not found "{name}"')
                         raise RuntimeError("Plugin not discovered. What did you do?")
 
                     inst = plug.instance

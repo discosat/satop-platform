@@ -1,23 +1,21 @@
-
-from dataclasses import dataclass
 import json
+import logging
+import os
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Iterable
 from uuid import UUID
-import os
+
+import jwt
+import sqlmodel
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-import jwt
 from sqlalchemy import Engine
-import sqlalchemy.exc
 from sqlmodel import SQLModel
-import sqlmodel
-from datetime import datetime, timedelta, timezone
 
-import logging
-
-from satop_platform.core import config
-from satop_platform.components.restapi import exceptions
 from satop_platform.components.authorization import models
+from satop_platform.components.restapi import exceptions
+from satop_platform.core import config
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +27,11 @@ class UUIDJSONEncoder(json.JSONEncoder):
         else:
             return super().default(o)
 
+
 ALGORITHM = "HS256"
 
 auth_scheme = HTTPBearer(
-    scheme_name='jwt_token',
-    description='JWT Token',
-    auto_error=False
+    scheme_name="jwt_token", description="JWT Token", auto_error=False
 )
 
 # Missing:
@@ -48,9 +45,11 @@ auth_scheme = HTTPBearer(
 # - Make possible to add new Scopes to User
 # - Make possible to remove Scopes from User
 
+
 @dataclass
 class ProviderDictItem:
     identity_hint: str
+
 
 class PlatformAuthorization:
     providers: dict[str, ProviderDictItem]
@@ -60,29 +59,33 @@ class PlatformAuthorization:
     def __init__(self):
         self.providers = dict()
 
-        engine_path = config.get_root_data_folder() / 'database/authorization.db'
+        engine_path = config.get_root_data_folder() / "database/authorization.db"
         engine_path.parent.mkdir(exist_ok=True)
-        engine_url = 'sqlite:///'+str(engine_path)
+        engine_url = "sqlite:///" + str(engine_path)
         self.engine = sqlmodel.create_engine(engine_url)
-        SQLModel.metadata.create_all(self.engine, [models.Entity.__table__, models.AuthenticationIdentifiers.__table__, models.RoleScopes.__table__]) # type: ignore
+        SQLModel.metadata.create_all(self.engine, [models.Entity.__table__, models.AuthenticationIdentifiers.__table__, models.RoleScopes.__table__])  # type: ignore
         self.used_scopes = set()
 
-        secret_key_path = config.get_root_data_folder() / 'token_secret'
+        secret_key_path = config.get_root_data_folder() / "token_secret"
         if not secret_key_path.exists():
-            logger.info('Creating new token secret')
+            logger.info("Creating new token secret")
             new_secret = os.urandom(32)
-            with open(secret_key_path, 'wb') as f:
+            with open(secret_key_path, "wb") as f:
                 f.write(new_secret)
                 os.chmod(f.fileno(), 0o600)
             self.__token_secret = new_secret
         else:
-            with open(secret_key_path, 'rb') as f:
+            with open(secret_key_path, "rb") as f:
                 status = os.stat(f.fileno())
-                if not oct(status.st_mode)[-2:] == '00':
-                    logger.warning(f'Access to the token secret is too permissive: {oct(status.st_mode)[-3:]}. Only the owner should be able view it (600)!')
+                if not oct(status.st_mode)[-2:] == "00":
+                    logger.warning(
+                        f"Access to the token secret is too permissive: {oct(status.st_mode)[-3:]}. Only the owner should be able view it (600)!"
+                    )
                 self.__token_secret = f.read()
-    
-    def mint_token(self, data: models.TokenBase, expires_delta: timedelta | None = None):
+
+    def mint_token(
+        self, data: models.TokenBase, expires_delta: timedelta | None = None
+    ):
         if expires_delta:
             expire = datetime.now(timezone.utc) + expires_delta
         elif data.exp:
@@ -97,82 +100,108 @@ class PlatformAuthorization:
                     delta = timedelta(minutes=5)
             expire = datetime.now(timezone.utc) + delta
 
-        to_encode = models.Token( **data.model_dump(exclude_none=True, exclude_defaults=True, exclude_unset=True) )
-        to_encode.iat = datetime.now( timezone.utc )
+        to_encode = models.Token(
+            **data.model_dump(
+                exclude_none=True, exclude_defaults=True, exclude_unset=True
+            )
+        )
+        to_encode.iat = datetime.now(timezone.utc)
         to_encode.exp = expire
 
-        encoded_jwt = jwt.encode(to_encode.model_dump(), self.__token_secret, algorithm=ALGORITHM, json_encoder=UUIDJSONEncoder)
+        encoded_jwt = jwt.encode(
+            to_encode.model_dump(),
+            self.__token_secret,
+            algorithm=ALGORITHM,
+            json_encoder=UUIDJSONEncoder,
+        )
         return encoded_jwt
 
-    def validate_token(self, token:str, require_typ: models.TokenType|None = models.TokenType.access):
+    def validate_token(
+        self, token: str, require_typ: models.TokenType | None = models.TokenType.access
+    ):
         try:
-            payload = jwt.decode(token, self.__token_secret, algorithms=[ALGORITHM], require=["sub", "exp", "iat", "nbf"])
-            username = payload.get('sub')
+            payload = jwt.decode(
+                token,
+                self.__token_secret,
+                algorithms=[ALGORITHM],
+                require=["sub", "exp", "iat", "nbf"],
+            )
+            username = payload.get("sub")
             if username is None:
                 raise exceptions.InvalidToken()
-            
-            exp_time = payload.get('exp')
-            if datetime.fromtimestamp(exp_time, timezone.utc) < datetime.now(timezone.utc):
+
+            exp_time = payload.get("exp")
+            if datetime.fromtimestamp(exp_time, timezone.utc) < datetime.now(
+                timezone.utc
+            ):
                 raise exceptions.ExpiredToken()
-            
+
             validated = models.Token.model_validate(payload)
-            
+
             if require_typ and require_typ != validated.typ:
-                raise ValueError('Unexpected token type')
+                raise ValueError("Unexpected token type")
 
             return validated
-        
+
         except jwt.ExpiredSignatureError:
             raise exceptions.ExpiredToken()
         except (jwt.InvalidTokenError, jwt.MissingRequiredClaimError, ValueError) as e:
-            logger.warning(f'Failed validating token: {e}')
-            if os.environ.get('SATOP_ENABLE_TEST_AUTH'):
-                split = token.split(';')
+            logger.warning(f"Failed validating token: {e}")
+            if os.environ.get("SATOP_ENABLE_TEST_AUTH"):
+                split = token.split(";")
                 name = split[0]
-                roles = [] if len(split) == 1 else split[1].split(',')
+                roles = [] if len(split) == 1 else split[1].split(",")
 
                 test_token = models.TestToken(
-                    sub = UUID('00000000-7e57-4000-a000-000000000000'),
-                    iat = datetime.now(),
-                    nbf = datetime.now(),
-                    exp = datetime.now() + timedelta(minutes=10),
-                    typ = models.TokenType.access if require_typ is None else require_typ,
-                    test_name = name,
-                    test_scopes = roles
+                    sub=UUID("00000000-7e57-4000-a000-000000000000"),
+                    iat=datetime.now(),
+                    nbf=datetime.now(),
+                    exp=datetime.now() + timedelta(minutes=10),
+                    typ=models.TokenType.access if require_typ is None else require_typ,
+                    test_name=name,
+                    test_scopes=roles,
                 )
-                
-                logger.warning(f'Validating test token {token}. Remove "SATOP_ENABLE_TEST_AUTH" from env to disable this. SHOULD NOT BE USED IN PRODUCTION!')
+
+                logger.warning(
+                    f'Validating test token {token}. Remove "SATOP_ENABLE_TEST_AUTH" from env to disable this. SHOULD NOT BE USED IN PRODUCTION!'
+                )
                 return test_token
             raise exceptions.InvalidToken(detail=str(e))
 
     def register_provider(self, provider_key: str, identity_hint: str):
         if provider_key in self.providers:
-            raise RuntimeError('Provider name already registered')
+            raise RuntimeError("Provider name already registered")
 
         self.providers[provider_key] = ProviderDictItem(identity_hint=identity_hint)
-    
+
     def get_uuid(self, provider: str, entity_identifier: str):
         with sqlmodel.Session(self.engine) as session:
-            statement = sqlmodel.select(models.AuthenticationIdentifiers)\
-                .where(models.AuthenticationIdentifiers.provider == provider)\
+            statement = (
+                sqlmodel.select(models.AuthenticationIdentifiers)
+                .where(models.AuthenticationIdentifiers.provider == provider)
                 .where(models.AuthenticationIdentifiers.identity == entity_identifier)
+            )
             entity = session.exec(statement).first()
             if entity:
                 return entity.entity_id
 
         return None
 
-    def create_token(self, uuid: UUID, typ = models.TokenType.access, expires_delta: timedelta | None = None):
-        token = models.TokenBase(
-            sub = uuid,
-            typ = typ
-        )
+    def create_token(
+        self,
+        uuid: UUID,
+        typ=models.TokenType.access,
+        expires_delta: timedelta | None = None,
+    ):
+        token = models.TokenBase(sub=uuid, typ=typ)
 
         return self.mint_token(token, expires_delta=expires_delta)
-    
+
     def create_refresh_token(self, uuid: UUID, expires_delta: timedelta | None = None):
-        return self.create_token(uuid, models.TokenType.refresh, expires_delta=expires_delta)
-    
+        return self.create_token(
+            uuid, models.TokenType.refresh, expires_delta=expires_delta
+        )
+
     # def validate_token(self, token: str):
     #     try:
     #         return self._validate_token(token)
@@ -181,7 +210,13 @@ class PlatformAuthorization:
     #     except jwt.InvalidTokenError:
     #         raise exceptions.InvalidToken()
 
-    def require_login(self, credentials: Annotated[HTTPAuthorizationCredentials|None, Depends(auth_scheme)], request: Request):
+    def require_login(
+        self,
+        credentials: Annotated[
+            HTTPAuthorizationCredentials | None, Depends(auth_scheme)
+        ],
+        request: Request,
+    ):
         if credentials is None:
             raise exceptions.MissingCredentials
         token = credentials.credentials
@@ -195,7 +230,13 @@ class PlatformAuthorization:
 
         return payload
 
-    def require_refresh(self, credentials: Annotated[HTTPAuthorizationCredentials|None, Depends(auth_scheme)], request: Request):
+    def require_refresh(
+        self,
+        credentials: Annotated[
+            HTTPAuthorizationCredentials | None, Depends(auth_scheme)
+        ],
+        request: Request,
+    ):
         if credentials is None:
             raise exceptions.MissingCredentials
         token = credentials.credentials
@@ -215,7 +256,12 @@ class PlatformAuthorization:
         elif isinstance(needed_scopes, Iterable):
             self.used_scopes |= set(needed_scopes)
 
-        def f(token_payload: Annotated[models.Token|models.TestToken, Depends(self.require_login)], request: Request):
+        def f(
+            token_payload: Annotated[
+                models.Token | models.TestToken, Depends(self.require_login)
+            ],
+            request: Request,
+        ):
             validated_scopes = None
             if isinstance(token_payload, models.TestToken):
                 validated_scopes = token_payload.test_scopes
@@ -223,9 +269,9 @@ class PlatformAuthorization:
             if validated_scopes is None:
                 validated_scopes = self.get_entity_scopes(request.state.userid)
 
-            def matches(scope:str|Iterable[str], validated:str):
+            def matches(scope: str | Iterable[str], validated: str):
                 if isinstance(scope, str):
-                    if validated.endswith('*'):
+                    if validated.endswith("*"):
                         prefix = validated[:-1]
                         return scope.startswith(prefix)
                     return scope == validated
@@ -237,6 +283,7 @@ class PlatformAuthorization:
                 raise exceptions.InsufficientPermissions()
 
             return True
+
         return f
 
     def get_all_entities(self):
@@ -247,9 +294,7 @@ class PlatformAuthorization:
 
     def add_entity(self, entity: models.EntityBase):
         new_entity = models.Entity(
-            name=entity.name,
-            type=entity.type,
-            roles=entity.roles
+            name=entity.name, type=entity.type, roles=entity.roles
         )
 
         with sqlmodel.Session(self.engine) as session:
@@ -258,8 +303,8 @@ class PlatformAuthorization:
             session.refresh(new_entity)
 
             return new_entity
-    
-    def update_entity(self, entity_id:UUID, entity: models.EntityBase):
+
+    def update_entity(self, entity_id: UUID, entity: models.EntityBase):
         with sqlmodel.Session(self.engine) as session:
             ent = session.get_one(models.Entity, entity_id)
             new_data = entity.model_dump(exclude_unset=True)
@@ -269,36 +314,39 @@ class PlatformAuthorization:
             session.refresh(ent)
 
             return ent
-        
+
     def delete_entity(self, uuid: UUID) -> None:
         with sqlmodel.Session(self.engine) as session:
             ent = session.exec(
-                sqlmodel.select(models.Entity)
-                        .where(models.Entity.id == uuid)
+                sqlmodel.select(models.Entity).where(models.Entity.id == uuid)
             ).one()
             session.delete(ent)
             session.commit()
-            
+
         return
 
     def get_entity_details(self, _uuid: str):
         with sqlmodel.Session(self.engine) as session:
-            statement = sqlmodel.select(models.Entity).where(models.Entity.id == UUID(_uuid))
+            statement = sqlmodel.select(models.Entity).where(
+                models.Entity.id == UUID(_uuid)
+            )
             entity = session.exec(statement).first()
 
             if not entity:
                 raise exceptions.NotFound(f"Entity {_uuid} not found")
-            
+
             return entity
-        
+
     def get_entity_idps(self, uuid: UUID):
         with sqlmodel.Session(self.engine) as session:
-            statement = sqlmodel.select(models.AuthenticationIdentifiers).where(models.AuthenticationIdentifiers.entity_id == uuid)
+            statement = sqlmodel.select(models.AuthenticationIdentifiers).where(
+                models.AuthenticationIdentifiers.entity_id == uuid
+            )
             idps = session.exec(statement).all()
 
             identities: dict[str, list[str]] = dict()
             for idp in idps:
-                if not idp.provider in identities:
+                if idp.provider not in identities:
                     identities[idp.provider] = list()
                 identities[idp.provider].append(idp.identity)
 
@@ -308,27 +356,28 @@ class PlatformAuthorization:
         aidp = models.AuthenticationIdentifiers(
             entity_id=UUID(_uuid),
             provider=provider.provider,
-            identity=provider.identity
+            identity=provider.identity,
         )
 
         with sqlmodel.Session(self.engine) as session:
             session.add(aidp)
             session.commit()
             session.refresh(aidp)
-        
+
             return aidp
-    
+
     def unlink_identity(self, aidp: models.AuthenticationIdentifiers):
         with sqlmodel.Session(self.engine) as session:
-            statement = sqlmodel.select(models.AuthenticationIdentifiers)\
-                        .where(models.AuthenticationIdentifiers.provider == aidp.provider)\
-                        .where(models.AuthenticationIdentifiers.identity == aidp.identity)\
-                        .where(models.AuthenticationIdentifiers.entity_id == aidp.entity_id)
+            statement = (
+                sqlmodel.select(models.AuthenticationIdentifiers)
+                .where(models.AuthenticationIdentifiers.provider == aidp.provider)
+                .where(models.AuthenticationIdentifiers.identity == aidp.identity)
+                .where(models.AuthenticationIdentifiers.entity_id == aidp.entity_id)
+            )
             x = session.exec(statement).one()
             session.delete(x)
             session.commit()
         return
-
 
     def get_identity_providers(self):
         return self.providers
@@ -339,7 +388,9 @@ class PlatformAuthorization:
 
     def get_idp_details(self, provider_name: str):
         with sqlmodel.Session(self.engine) as session:
-            statement = sqlmodel.select(models.AuthenticationIdentifiers).where(models.AuthenticationIdentifiers.provider == provider_name)
+            statement = sqlmodel.select(models.AuthenticationIdentifiers).where(
+                models.AuthenticationIdentifiers.provider == provider_name
+            )
             entitites = session.exec(statement).all()
 
             provider = self.providers.get(provider_name)
@@ -347,52 +398,54 @@ class PlatformAuthorization:
             if not provider:
                 raise exceptions.NotFound(f"Provider {provider_name} not found")
 
-            return models.IdentityProviderDetails(provider_hint=provider.identity_hint, registered_users=list(entitites))
-        
+            return models.IdentityProviderDetails(
+                provider_hint=provider.identity_hint, registered_users=list(entitites)
+            )
+
     def get_roles(self):
         with sqlmodel.Session(self.engine) as session:
             statement = sqlmodel.select(models.RoleScopes)
             results = session.exec(statement)
-            roles:dict[str,list[str]] = dict()
+            roles: dict[str, list[str]] = dict()
 
             for res in results:
                 if res.role not in roles:
                     roles[res.role] = list()
                 roles[res.role].append(res.scope)
-            
-            for k,v in roles.items():
+
+            for k, v in roles.items():
                 roles[k] = sorted(v)
 
             return roles
-    
 
-    def create_new_role(self, name:str, scopes:list[str]):
-        new_roles = [
-            models.RoleScopes(role=name, scope=s)
-            for s in scopes
-        ]
+    def create_new_role(self, name: str, scopes: list[str]):
+        new_roles = [models.RoleScopes(role=name, scope=s) for s in scopes]
 
         with sqlmodel.Session(self.engine) as session:
             session.add_all(new_roles)
             session.commit()
-        
+
         return
 
-    def remove_role(self, name:str):
+    def remove_role(self, name: str):
         with sqlmodel.Session(self.engine) as session:
-            statement = sqlmodel.select(models.RoleScopes).where(models.RoleScopes.role == name)
+            statement = sqlmodel.select(models.RoleScopes).where(
+                models.RoleScopes.role == name
+            )
             rows = session.exec(statement).all()
 
             for row in rows:
                 session.delete(row)
 
             session.commit()
-        
+
         return
-    
-    def update_role(self, name:str, scopes:list[str]):
+
+    def update_role(self, name: str, scopes: list[str]):
         with sqlmodel.Session(self.engine) as session:
-            result = session.exec(sqlmodel.select(models.RoleScopes).where(models.RoleScopes.role == name)).all()
+            result = session.exec(
+                sqlmodel.select(models.RoleScopes).where(models.RoleScopes.role == name)
+            ).all()
             current_scopes = {s.scope for s in result}
             new_scopes = set(scopes)
 
@@ -405,28 +458,27 @@ class PlatformAuthorization:
 
             session.add_all([models.RoleScopes(role=name, scope=s) for s in to_add])
             session.commit()
-        
-        return {
-            'deleted': len(to_delete),
-            'added': len(to_add)
-        }
 
-    def get_entity_scopes(self, entity_id:UUID):
+        return {"deleted": len(to_delete), "added": len(to_add)}
+
+    def get_entity_scopes(self, entity_id: UUID):
         with sqlmodel.Session(self.engine) as session:
-            statement = sqlmodel.select(models.Entity).where(models.Entity.id == entity_id)
+            statement = sqlmodel.select(models.Entity).where(
+                models.Entity.id == entity_id
+            )
             entity = session.exec(statement).first()
-            
+
             if not entity:
                 raise exceptions.InvalidUser
-            
-            roles = entity.roles.split(',')
 
-            statement = sqlmodel.select(models.RoleScopes).where(models.RoleScopes.role.in_(roles)) # type: ignore
+            roles = entity.roles.split(",")
+
+            statement = sqlmodel.select(models.RoleScopes).where(models.RoleScopes.role.in_(roles))  # type: ignore
             result = session.exec(statement).all()
-        
+
             return {x.scope for x in result}
 
-    def refresh_tokens(self, refresh_token: str|models.Token):
+    def refresh_tokens(self, refresh_token: str | models.Token):
         match refresh_token:
             case str():
                 t = self.validate_token(refresh_token)
@@ -439,6 +491,6 @@ class PlatformAuthorization:
             raise exceptions.InvalidToken
 
         return models.TokenPair(
-            access_token  = self.create_token(t.sub),
-            refresh_token = self.create_refresh_token(t.sub)
+            access_token=self.create_token(t.sub),
+            refresh_token=self.create_refresh_token(t.sub),
         )
