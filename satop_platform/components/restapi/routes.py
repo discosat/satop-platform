@@ -8,8 +8,8 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 
 from satop_platform.components.authorization import models
-from satop_platform.components.authorization.auth import ProviderDictItem
 from satop_platform.components.authorization.models import Token
+from satop_platform.components.authorization.types import ProviderDictItem
 from satop_platform.components.restapi import exceptions
 
 if TYPE_CHECKING:

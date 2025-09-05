@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Iterable
 from uuid import UUID
@@ -16,6 +15,8 @@ from sqlmodel import SQLModel
 from satop_platform.components.authorization import models
 from satop_platform.components.restapi import exceptions
 from satop_platform.core import config
+
+from .types import ProviderDictItem
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +45,6 @@ auth_scheme = HTTPBearer(
 # - Make User Scopes
 # - Make possible to add new Scopes to User
 # - Make possible to remove Scopes from User
-
-
-@dataclass
-class ProviderDictItem:
-    identity_hint: str
 
 
 class PlatformAuthorization:
