@@ -312,10 +312,13 @@ class Scheduling(Plugin):
             await self.__update_flight_plan_status(uuid, FlightPlanStatusEnum.APPROVED)
             logger.debug(f"Flight plan '{uuid}' was approved by user: {user_id}")
 
-            flight_plan_dict = flight_plan.flight_plan.model_dump()
+            flight_plan_detail_dict = flight_plan.flight_plan.model_dump()
+
+            commands_to_compile = flight_plan_detail_dict.get("body", [])
+
             # Compile the flight plan
             compiled_plan, artifact_id = await self.call_function(
-                "Compiler", "compile", flight_plan_dict, user_id
+                "Compiler", "compile", commands_to_compile, user_id
             )
 
             background_tasks.add_task(
