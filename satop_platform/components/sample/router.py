@@ -1,19 +1,18 @@
 from fastapi import APIRouter
-from .sample import test
+
 from ..restapi import APIApplication
+from .sample import test
+
 
 def create_router():
-    router = APIRouter(
-        prefix='/sample',
-        tags=['Sample component with API']
-    )
+    router = APIRouter(prefix="/sample", tags=["Sample component with API"])
 
-    @router.get('/hw', name='Hello Function')
+    @router.get("/hw", name="Hello Function")
     def hello():
-        '''
+        """
         Description of hello function
-        '''
-        return {'message': test()}
+        """
+        return {"message": test()}
 
     return router
 

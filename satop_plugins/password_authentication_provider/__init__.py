@@ -1,1 +1,3 @@
-from .password_authentication_provider import PasswordAuthenticationProvider as PluginClass
+from .password_authentication_provider import (
+    PasswordAuthenticationProvider as PluginClass,
+)

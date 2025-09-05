@@ -31,3 +31,30 @@ dependencies = [
     "uvicorn>=0.34",
     "websockets>=15.0.1"
 ]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "httpx",
+    "PyYAML"
+]
+
+lint = [
+    "ruff",
+    "black",
+    "mypy"
+]
+
+[tool.ruff]
+line-length = 88
+src = ["satop_platform", "satop_plugins", "test"]
+select = ["E", "F", "W", "I"]
+
+[tool.black]
+line-length = 88
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]

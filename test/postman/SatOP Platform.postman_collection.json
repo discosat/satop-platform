@@ -1839,7 +1839,7 @@
 							"name": "scheduling",
 							"item": [
 								{
-									"name": "New Flihtplan Schedule",
+									"name": "New Flightplan Schedule",
 									"event": [
 										{
 											"listen": "test",
