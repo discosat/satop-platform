@@ -99,7 +99,8 @@ class StorageDatabase:
     def save_flight_plan(self, flight_plan: FlightPlan, flight_plan_uuid: str) -> None:
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            flight_plan_json = json.dumps(flight_plan.flight_plan)
+            flight_plan_dict = flight_plan.flight_plan.model_dump()
+            flight_plan_json = json.dumps(flight_plan_dict)
             cursor.execute(
                 "INSERT INTO flight_plans (id, flight_plan, datetime, gs_id, sat_name) VALUES (?, ?, ?, ?, ?)",
                 (

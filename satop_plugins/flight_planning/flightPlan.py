@@ -1,43 +1,39 @@
 from datetime import datetime
+from typing import Any, Dict, List
 
 from pydantic import BaseModel
 
 
+class FlightPlanDetail(BaseModel):
+    name: str
+    body: List[Dict[str, Any]]
+
+
 class FlightPlan(BaseModel):
-    flight_plan: dict
-    datetime: str
+    id: str | None = None
+    flight_plan: FlightPlanDetail
+    datetime: datetime
     gs_id: str
     sat_name: str
-
-    def validate_datetime_format(self):
-        # Convert datetime string to datetime object
-        try:
-            self.datetime = datetime.fromisoformat(self.datetime)
-        except ValueError:
-            raise ValueError("Invalid datetime format. Expected ISO format.")
+    status: str | None = None
 
     model_config = {
         "json_schema_extra": {
             "examples": [
                 {
+                    "id": None,
                     "flight_plan": {
-                        "name": "commands",
+                        "name": "Sample Imaging Plan",
                         "body": [
-                            {
-                                "name": "repeat-n",
-                                "count": 10,
-                                "body": [
-                                    {"name": "gpio-write", "pin": 16, "value": 1},
-                                    {"name": "wait-sec", "duration": 1},
-                                    {"name": "gpio-write", "pin": 16, "value": 0},
-                                    {"name": "wait-sec", "duration": 1},
-                                ],
-                            }
+                            {"name": "gpio-write", "pin": 16, "value": 1},
+                            {"name": "wait-sec", "duration": 5},
+                            {"name": "gpio-write", "pin": 16, "value": 0},
                         ],
                     },
                     "datetime": "2025-01-01T12:12:30+01:00",
                     "gs_id": "86c8a92b-571a-46cb-b306-e9be71959279",
                     "sat_name": "DISCO-2",
+                    "status": None,
                 }
             ]
         }
