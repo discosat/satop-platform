@@ -344,9 +344,10 @@ class Scheduling(Plugin):
 
             logger.debug(f"found flight plan: {_flightplan_with_datetime}")
 
+            flight_plan_dict = _flightplan_with_datetime.flight_plan.model_dump()
             # Compile the flight plan
             compiled_plan, artifact_id = await self.call_function(
-                "Compiler", "compile", _flightplan_with_datetime.flight_plan, user_id
+                "Compiler", "compile", flight_plan_dict, user_id
             )
 
             background_tasks.add_task(
