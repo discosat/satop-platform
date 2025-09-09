@@ -198,14 +198,6 @@ class PlatformAuthorization:
             uuid, models.TokenType.refresh, expires_delta=expires_delta
         )
 
-    # def validate_token(self, token: str):
-    #     try:
-    #         return self._validate_token(token)
-    #     except jwt.ExpiredSignatureError:
-    #         raise exceptions.ExpiredToken()
-    #     except jwt.InvalidTokenError:
-    #         raise exceptions.InvalidToken()
-
     def require_login(
         self,
         credentials: Annotated[
@@ -377,10 +369,6 @@ class PlatformAuthorization:
 
     def get_identity_providers(self):
         return self.providers
-        # with sqlmodel.Session(self.engine) as session:
-        #     statement = sqlmodel.select(models.AuthenticationIdentifiers)
-        #     providers = session.exec(statement).all()
-        #     return providers
 
     def get_idp_details(self, provider_name: str):
         with sqlmodel.Session(self.engine) as session:

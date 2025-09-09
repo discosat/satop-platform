@@ -31,28 +31,6 @@ def load_routes(components: SatOPApplication):
 
     router = APIRouter(prefix=api_app._root_path, tags=["Platform Core"])
 
-    # @router.get('/hello', dependencies=[Depends(api_app.authorization.require_scope(['test']))])
-    # async def route_hello():
-    #     """Test route for the API
-
-    #     Returns:
-    #         dict: A simple message
-    #     """
-    #     return {"message": "Hello from main"}
-
-    # api_app.include_router(router)
-
-    # well_known_router = APIRouter(prefix='/.well-known', tags=['.well-known'])
-
-    # @well_known_router.get('/ni/')
-    # async def well_known_ni_base():
-    #     return RedirectResponse(f'/api/log/artifacts/ni/')
-
-    # @well_known_router.get('/ni/{ni}')
-    # async def well_known_ni_redirect(ni):
-    #     return RedirectResponse(f'/api/log/artifacts/ni/{ni}')
-
-    # api_app.api_app.include_router(well_known_router)
     auth_router = APIRouter(prefix="/auth", tags=["Authorization"])
 
     @auth_router.get(
@@ -84,7 +62,7 @@ def load_routes(components: SatOPApplication):
         response_description="The details of the specified entity.",
         responses={**exceptions.NotFound("Entity not found").response},
     )
-    async def get_entity_details(uuid: str) -> models.Entity:
+    async def get_entity_details(uuid: UUID) -> models.Entity:
         return api_app.authorization.get_entity_details(uuid)
 
     @auth_router.delete(
@@ -127,7 +105,7 @@ def load_routes(components: SatOPApplication):
         response_description="The authentication identifiers for the entity.",
     )
     async def connect_entity_idp(
-        uuid: str, provider: models.ProviderIdentityBase
+        uuid: UUID, provider: models.ProviderIdentityBase
     ) -> models.AuthenticationIdentifiers:
         return api_app.authorization.connect_entity_idp(uuid, provider)
 
@@ -209,22 +187,6 @@ def load_routes(components: SatOPApplication):
 
     # TODO: Add Refresh Token to scope or somewhere else we can store it
     # TODO: Update access token refresher \/
-    """
-    @auth_router.get('/refresh_token')
-    async def get_new_access_token(token_details:dict = Depends(...))
-        expiry_timestamp = token_details['exp']
-
-        if datetime.fromtimestamp(expiry_timestamp) > datetime.now():
-            new_access_token = create_access_token(
-                user_data=token_details['user']
-            )
-
-            return JSONResponse(content={
-                "access_token": new_access_token
-            })
-        
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, details="Invalid Or Expired Token")
-    """
 
     @auth_router.get("/refresh_token")
     async def refresh_access_token(tok: Token = Depends(auth.require_refresh)):
