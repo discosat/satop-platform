@@ -68,7 +68,7 @@ class PlatformAuthorization:
             new_secret = os.urandom(32)
             with open(secret_key_path, "wb") as f:
                 f.write(new_secret)
-                os.chmod(f.fileno(), 0o600)
+                os.chmod(secret_key_path, 0o600)
             self.__token_secret = new_secret
         else:
             with open(secret_key_path, "rb") as f:
