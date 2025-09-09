@@ -64,7 +64,6 @@ class APIApplication:
             tags (list[str], optional): Tags describing the plugin in the auto docs. Defaults to plugin_name if none are set in the router itself
             plugin_path (str, optional): Path under which the plugin routes will be mounted. Defaults to '/plugins' or value of 'plugin_path' in the api.yml file.
         """
-        # logger.debug(f"from restapi.mount_plugin_router... Name: {plugin_name}, Router: {plugin_router}, Tags: {tags}, Path: {plugin_path}")
         if tags is None and len(plugin_router.tags) == 0:
             tags = [plugin_name]
 
@@ -85,26 +84,12 @@ class APIApplication:
         # TODO: DOCSTRING
         self._router.include_router(*args, **kwargs)
 
-    # def list_routes(self):
-    #     """List all non-generic routes registered in the API
-    #     """
-    #     routes = []
-    #     for route in self.api_app.routes[4:]:
-    #         routes.append({
-    #             'path': route.path,
-    #             'methods': route.methods,
-    #             'name': route.name
-    #         })
-    #     return routes
-
     async def run_server(self, host="127.0.0.1", port=7889):
         self.api_app.include_router(self._router)
 
         host = self._api_config.get("host", host)
         port = self._api_config.get_int("port", port)
 
-        # logger.debug(f"API app: {self.api_app}")
-        # logger.debug(f"Listing routes custom: {self.list_routes()}")
         logger.info(f"Starting server on {host}:{port}")
 
         config = uvicorn.Config(self.api_app, host=host, port=port, log_level="info")  # type: ignore

@@ -68,7 +68,7 @@ class PlatformAuthorization:
             new_secret = os.urandom(32)
             with open(secret_key_path, "wb") as f:
                 f.write(new_secret)
-                os.chmod(f.fileno(), 0o600)
+                os.chmod(secret_key_path, 0o600)
             self.__token_secret = new_secret
         else:
             with open(secret_key_path, "rb") as f:
@@ -197,14 +197,6 @@ class PlatformAuthorization:
         return self.create_token(
             uuid, models.TokenType.refresh, expires_delta=expires_delta
         )
-
-    # def validate_token(self, token: str):
-    #     try:
-    #         return self._validate_token(token)
-    #     except jwt.ExpiredSignatureError:
-    #         raise exceptions.ExpiredToken()
-    #     except jwt.InvalidTokenError:
-    #         raise exceptions.InvalidToken()
 
     def require_login(
         self,
@@ -348,9 +340,9 @@ class PlatformAuthorization:
 
             return identities
 
-    def connect_entity_idp(self, _uuid: str, provider: models.ProviderIdentityBase):
+    def connect_entity_idp(self, _uuid: UUID, provider: models.ProviderIdentityBase):
         aidp = models.AuthenticationIdentifiers(
-            entity_id=UUID(_uuid),
+            entity_id=_uuid,
             provider=provider.provider,
             identity=provider.identity,
         )
@@ -377,10 +369,6 @@ class PlatformAuthorization:
 
     def get_identity_providers(self):
         return self.providers
-        # with sqlmodel.Session(self.engine) as session:
-        #     statement = sqlmodel.select(models.AuthenticationIdentifiers)
-        #     providers = session.exec(statement).all()
-        #     return providers
 
     def get_idp_details(self, provider_name: str):
         with sqlmodel.Session(self.engine) as session:

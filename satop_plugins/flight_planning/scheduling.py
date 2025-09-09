@@ -41,7 +41,7 @@ class Scheduling(Plugin):
             summary="Takes a flight plan and saves it for approval.",
             response_model=FlightPlan,
             status_code=201,
-            dependencies=[Depends(self.platform_auth.require_login)],
+            dependencies=[Depends(self.platform_auth.require_scope("scheduling.flightplan.create"))],
         )
         async def new_flightplan_schedule(
             flight_plan: FlightPlan, req: Request
@@ -112,7 +112,7 @@ class Scheduling(Plugin):
             description="Get a stored flight plan based on its ID.",
             response_model=FlightPlan,
             status_code=200,
-            dependencies=[Depends(self.platform_auth.require_login)],
+            dependencies=[Depends(self.platform_auth.require_scope("scheduling.flightplan.read"))],
         )
         async def get_flight_plan(uuid: str, req: Request) -> FlightPlan:
             user_id = req.state.userid
@@ -134,7 +134,7 @@ class Scheduling(Plugin):
             description="Get all stored flight plans.",
             response_model=list[FlightPlan],
             status_code=200,
-            dependencies=[Depends(self.platform_auth.require_login)],
+            dependencies=[Depends(self.platform_auth.require_scope("scheduling.flightplan.read"))],
         )
         async def get_all_flight_plans(req: Request) -> list[FlightPlan]:
             user_id = req.state.userid
@@ -162,7 +162,7 @@ class Scheduling(Plugin):
             description="Creates a new version of a flight plan. The old plan is marked as 'superseded' and a new plan with a new ID is created.",
             response_model=FlightPlan,
             status_code=201,
-            dependencies=[Depends(self.platform_auth.require_login)],
+            dependencies=[Depends(self.platform_auth.require_scope("scheduling.flightplan.update"))],
         )
         async def update_flight_plan(
             uuid: str, new_flight_plan_data: FlightPlan, req: Request
@@ -258,7 +258,7 @@ class Scheduling(Plugin):
             """,
             response_description="A message indicating the result of the approval",
             status_code=202,
-            dependencies=[Depends(self.platform_auth.require_login)],
+            dependencies=[Depends(self.platform_auth.require_scope("scheduling.flightplan.approve"))],
         )
         async def approve_flight_plan(
             uuid: str,

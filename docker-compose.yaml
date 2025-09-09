@@ -27,7 +27,7 @@ services:
       - ./docker/data:/satop/data
     working_dir: /satop
     environment:
-      - SATOP_DATA_ROOT=/satop/docker/data
+      - SATOP_DATA_ROOT=/satop/data
       - PYTHONPATH=/satop
       - SATOP_ENABLE_TEST_AUTH=true
     user: root

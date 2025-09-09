@@ -25,6 +25,9 @@ class HashedCredentials(sqlmodel.SQLModel, table=True):
     password_hash: bytes
     salt: bytes
 
+class TokenResponse(TokenPair):
+    scopes: list[str]
+
 
 class PasswordCredentials(BaseModel):
     email: str
@@ -59,17 +62,36 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
 
         @self.api_router.post(
             "/token",
-            response_model=TokenPair,
-            summary="Request an access and refresh token.",
-            description="Obtain a new access token by providing valid user credentials (email and password).",
-            response_description="A fresh JWT token.",
+            response_model=TokenResponse,
+            summary="Request an access and refresh token with scopes.",
+            description="Obtain new tokens and a list of effective user permissions by providing valid credentials.",
+            response_description="An access token, refresh token, and a list of permission scopes.",
             responses={**exceptions.InvalidCredentials().response},
         )
         async def __create_token(credentials: PasswordCredentials):
-            if self.validate(credentials.email, credentials.password):
-                return self.create_token_pair(user_id=credentials.email)
+            if not self.validate(credentials.email, credentials.password):
+                raise exceptions.InvalidCredentials
 
-            raise exceptions.InvalidCredentials
+            user_id_for_auth_system = self.app.auth.get_uuid(
+                provider="email_password", entity_identifier=credentials.email
+            )
+            if not user_id_for_auth_system:
+                raise exceptions.InvalidCredentials(detail="User is valid but not linked to a platform entity.")
+
+            user_scopes = self.app.auth.get_entity_scopes(user_id_for_auth_system)
+            
+            token_pair = self.create_token_pair(user_id=credentials.email)
+            
+            response_data = TokenResponse(
+                access_token=token_pair.access_token,
+                refresh_token=token_pair.refresh_token,
+                scopes=sorted(list(user_scopes)),
+            )
+        
+            print(f"--- SENDING TOKEN RESPONSE TO FRONTEND: {response_data.model_dump_json()} ---")
+            return response_data
+        
+
 
         @self.api_router.post(
             "/user",

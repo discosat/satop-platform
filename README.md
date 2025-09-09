@@ -205,112 +205,130 @@ The following capabilities are supported,
 | http.add_routes                  | The FastAPI APIRouter defined in the plugin will be mounted on the main FastAPI application              |
 | security.authentication_provider | Allows the plugin access to authentication methods, such as creating JWT tokens, by dependency injection |
 
-## Authentication and authorization
+## Authentication and Authorization
 
-As API routes can be secured, only allowing access to authenticated and authorized users, some setup is required to define who is allowed to do what.
+The platform's security is built on three core principles: **Entities**, **Roles**, and **Scopes**.
 
-The two core principles of the authorization system is "entities" and "scopes". As the platform is made for interoperability, both people and other systems should be able to access the platform resources, so both of these are defined under the umbrella-term "entity".
+- An **Entity** is any actor that interacts with the system (a person, a ground station, etc.).
+- A **Role** is a job function with a defined set of permissions (e.g., `flight-operator`, `mission-director`).
+- A **Scope** is a single, granular permission (e.g., `scheduling.flightplan.approve`).
 
-Scopes are various permissions an entity has, and API routes can be setup to require a specific set of scopes.
+The standard workflow is: Scopes are assigned to Roles, and Roles are assigned to Entities.
 
-Example of creating a new user with the included email-password authentication plugin:
+**Example of creating and authenticating a new user:**
 
-1. Create a new _person_ entity in the authorisation database:
+**1. Create a `mission-director` Role:**
+First, an administrator defines a role and assigns the necessary scopes to it.
 
-```
-POST /api/auth/entities
+`POST /api/auth/roles`
 
-Request body:
+```json
 {
-  "name": "John Smith",
-  "type": "person",
-  "scopes": "user,admin"
+  "name": "mission-director",
+  "scopes": [
+    "scheduling.flightplan.create",
+    "scheduling.flightplan.read",
+    "scheduling.flightplan.approve"
+  ]
 }
+```
 
-Response body:
+**2. Create a new `person` Entity:**
+Next, create the user entity and assign the `mission-director` role to them.
+
+`POST /api/auth/entities`
+
+```json
+{
+  "name": "Jane Doe",
+  "type": "person",
+  "roles": "mission-director"
+}
+```
+
+_Response Body:_
+
+```json
 {
   "type": "person",
-  "scopes": "user,admin",
-  "name": "John Smith",
+  "roles": "mission-director",
+  "name": "Jane Doe",
   "id": "b3552f9d-9800-4fe1-9770-aafde5083af6"
 }
 ```
 
-2. Define the identity identifier that gets authenticated by the specified provider. In this case, the `email_password`-based provider should authenticate users based on what their email-address is:
+**3. Connect the Entity to an Authentication Provider:**
+Link the entity's core ID to a real-world identifier, like an email address. Note the plural `providers` in the URL.
 
-```
-POST /api/auth/entities/b3552f9d-9800-4fe1-9770-aafde5083af6/provider
+`POST /api/auth/entities/b3552f9d-9800-4fe1-9770-aafde5083af6/providers`
 
-Request body:
+```json
 {
   "provider": "email_password",
-  "identity": "john@example.com"
-}
-
-Response body:
-{
-  "entity_id": "b3552f9d-9800-4fe1-9770-aafde5083af6",
-  "provider": "email_password",
-  "identity": "john@example.com"
+  "identity": "jane@example.com"
 }
 ```
 
-3. Create the user with a password for the identity-provider plugin's database. Alternative authentication plugins might not need this step, e.g. if it connects to a SSO-service where the user has already been created.
+**4. Create the User's Credentials:**
+This step is specific to the `email_password` plugin, creating the user's password.
 
-```
-POST /api/plugins/login/user
+`POST /api/plugins/login/user`
 
-Request body:
+```json
 {
-  "email": "john@example.com",
+  "email": "jane@example.com",
   "password": "correct-horse-battery-staple"
 }
-
-Response:
-201 Created
 ```
 
-4. An access token can then be obtained from the identity-provider plugin:
+**5. Obtain Access and Refresh Tokens:**
+The user can now log in to get their tokens. The response includes both an access and a refresh token. For a smooth frontend experience, it's recommended to also return the user's effective scopes.
 
-```
-POST /api/plugins/login/token
+`POST /api/plugins/login/token`
 
-Request body:
+```json
 {
-  "email": "john@example.com",
+  "email": "jane@example.com",
   "password": "correct-horse-battery-staple"
 }
+```
 
-Response body:
+_Response Body:_
+
+```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiMzU1MmY5ZC05ODAwLTRmZTEtOTc3MC1hYWZkZTUwODNhZjYiLCJ0eXAiOiJhY2Nlc3MiLCJleHAiOjE3Mzc1NTk1MDd9.it5LtH-CyhgQ7F3XgPbtkK-5nUzVNZR0rpuHAPI4-7M"
+  "access_token": "ey...",
+  "refresh_token": "ey...",
+  "scopes": [
+    "scheduling.flightplan.create",
+    "scheduling.flightplan.read",
+    "scheduling.flightplan.approve"
+  ]
 }
 ```
 
-5. This token can then be used to access restricted API routes, by adding it as a `Bearer`-token in the request header.
+### Test Mode
 
-```
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiMzU1MmY5ZC05ODAwLTRmZTEtOTc3MC1hYWZkZTUwODNhZjYiLCJ0eXAiOiJhY2Nlc3MiLCJleHAiOjE3Mzc1NTk1MDd9.it5LtH-CyhgQ7F3XgPbtkK-5nUzVNZR0rpuHAPI4-7M
-```
-
-### Test flag
-
-The platform can be started with the following testing flag:
-
-```sh
-python -m satop_platform --test-auth
-```
+To enable a special test mode for development, you must set the `SATOP_ENABLE_TEST_AUTH` environment variable before starting the server.
 
 <ins>!! **THIS IS INHERENTLY INSECURE AND SHOULD NEVER BE USED IN PRODUCTION !!**</ins>
 
-It allows using a fake token for authorization that specifies a test user and their allowed scopes.
-The test token is a username and comma-seperated list of scopes, separated by a semi-colon.
+**PowerShell:**
 
-Example in the auth-header:
+```powershell
+$env:SATOP_ENABLE_TEST_AUTH=1; python -m satop_platform
+```
 
+**Linux / macOS:**
+
+```sh
+SATOP_ENABLE_TEST_AUTH=1 python -m satop_platform
 ```
-Authorization: Bearer steve;user,admin,test
-```
+
+This allows you to use a fake bearer token that specifies a username and their scopes directly. The format is `username;scope1,scope2`.
+
+**Example:**
+`Authorization: Bearer test-user;scheduling.flightplan.read,*`
 
 ## TODO
 
@@ -320,13 +338,13 @@ When starting work on one of the missing features, first create a new issue on G
 
 ### Auth
 
-- [ ] Protect neccessary routes
-- [ ] Bootstrapping first-user creation when these routes are protected
-- [ ] Entity modification and management
+- [x] Protect neccessary routes
+- [x] Bootstrapping first-user creation when these routes are protected
+- [x] Entity modification and management
 - [x] Be able to refresh/renew tokens
 - [ ] Standardize scopes and their naming scheme,
 - [ ] Add a way for components and plugins to specify which scopes they add to the system to enable easier user creation.
-- [ ] Scopes should be hierarchical, so e.g. a user with the "admin" scope would be authorized for routes requiring "admin.user_create".
+- [x] Scopes should be hierarchical, so e.g. a user with the "admin" scope would be authorized for routes requiring "admin.user_create".
 
 ### Logging
 
@@ -342,3 +360,7 @@ When starting work on one of the missing features, first create a new issue on G
 ### New features
 
 - [ ] Event-messaging system that allows emitting and listening for global events from any part of the platform.
+
+```
+
+```
