@@ -340,9 +340,9 @@ class PlatformAuthorization:
 
             return identities
 
-    def connect_entity_idp(self, _uuid: str, provider: models.ProviderIdentityBase):
+    def connect_entity_idp(self, _uuid: UUID, provider: models.ProviderIdentityBase):
         aidp = models.AuthenticationIdentifiers(
-            entity_id=UUID(_uuid),
+            entity_id=_uuid,
             provider=provider.provider,
             identity=provider.identity,
         )
