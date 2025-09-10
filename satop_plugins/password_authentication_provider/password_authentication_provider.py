@@ -79,18 +79,18 @@ class PasswordAuthenticationProvider(AuthenticationProviderPlugin):
                 raise exceptions.InvalidCredentials(detail="User is valid but not linked to a platform entity.")
 
             user_scopes = self.app.auth.get_entity_scopes(user_id_for_auth_system)
-            
+
             token_pair = self.create_token_pair(user_id=credentials.email)
-            
+
             response_data = TokenResponse(
                 access_token=token_pair.access_token,
                 refresh_token=token_pair.refresh_token,
                 scopes=sorted(list(user_scopes)),
             )
-        
+
             print(f"--- SENDING TOKEN RESPONSE TO FRONTEND: {response_data.model_dump_json()} ---")
             return response_data
-        
+
 
 
         @self.api_router.post(
