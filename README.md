@@ -17,6 +17,19 @@ docker compose up dev
 
 TODO: Create devcontainer for platform/plugin development.
 
+### Development Environment Users
+
+When running the `dev` service, the database is automatically reset and seeded with default users for a clean development experience. Each time you run `docker compose up dev`, the environment will be returned to this clean state.
+
+You can log in with the following credentials:
+
+- **Admin User**
+  - **Email:** `admin@example.com`
+  - **Password:** `adminpassword`
+- **Operator User**
+  - **Email:** `operator@example.com`
+  - **Password:** `operatorpassword`
+
 ## Requirements
 
 The platform requires Python 3.10 or later to run. Install from [python.org](https://www.python.org/downloads/) or if using Linux, your distribution's package repository.
@@ -151,6 +164,8 @@ python -m satop_platform [-vv] [--install-plugin-requirements]
 
 Note that the `--install-plugin-requirements` flag will install any requirements specified in the plugins' `config.yaml` files. This flag is only necessary if its the first time the satop platform will be running or if there's an update to a plugins requirements.
 
+**Note:** When running the platform manually (outside of the provided Docker development environment), the database will not be automatically seeded. You will need to create the first user and roles manually using the API endpoints described in the 'Authentication and Authorization' section.
+
 ## Plugin development
 
 ### Minimum files
@@ -215,7 +230,9 @@ The platform's security is built on three core principles: **Entities**, **Roles
 
 The standard workflow is: Scopes are assigned to Roles, and Roles are assigned to Entities.
 
-**Example of creating and authenticating a new user:**
+### API Workflow for User Creation
+
+The following example demonstrates the multi-step API workflow for creating a new user from scratch. **Note:** For the Docker-based development environment (`docker compose up dev`), this entire process is automated, and default users are created for you (see the Docker section above).
 
 **1. Create a `mission-director` Role:**
 First, an administrator defines a role and assigns the necessary scopes to it.
@@ -309,7 +326,7 @@ _Response Body:_
 
 ### Test Mode
 
-To enable a special test mode for development, you must set the `SATOP_ENABLE_TEST_AUTH` environment variable before starting the server.
+To enable a special test mode for development, you must set the `SATOP_ENABLE_TEST_AUTH` environment variable before starting the server. This is enabled by default in the dev Docker service.
 
 <ins>!! **THIS IS INHERENTLY INSECURE AND SHOULD NEVER BE USED IN PRODUCTION !!**</ins>
 

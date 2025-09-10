@@ -31,10 +31,8 @@ services:
       - PYTHONPATH=/satop
       - SATOP_ENABLE_TEST_AUTH=true
     user: root
-    entrypoint:
-      - "bash"
-      - "-c"
-      - "pip install -e . && python -m satop_platform -vv --install-plugin-requirements"
+    entrypoint: ["./scripts/start-and-seed.sh"]
+
 
   devcontainer:
     build:
