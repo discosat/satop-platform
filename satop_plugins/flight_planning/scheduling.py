@@ -40,7 +40,7 @@ class Scheduling(Plugin):
             summary="Create a new flight plan for approval",
             response_model=FlightPlan,
             status_code=status.HTTP_201_CREATED,
-            dependencies=[Depends(self.platform_auth.require_scope("flightplan.create"))],
+            dependencies=[Depends(self.platform_auth.require_scope("scheduling.flightplan.create"))],
         )
         async def create_flight_plan(
             flight_plan: FlightPlan, req: Request
@@ -99,7 +99,7 @@ class Scheduling(Plugin):
             "/",
             summary="Get all flight plans",
             response_model=list[FlightPlan],
-            dependencies=[Depends(self.platform_auth.require_scope("flightplan.read"))],
+            dependencies=[Depends(self.platform_auth.require_scope("scheduling.flightplan.read"))],
         )
         async def list_flight_plans() -> list[FlightPlan]:
             all_flight_plans = await run_in_threadpool(
@@ -115,7 +115,7 @@ class Scheduling(Plugin):
             "/{flight_plan_id}",
             summary="Get a specific flight plan by its ID",
             response_model=FlightPlan,
-            dependencies=[Depends(self.platform_auth.require_scope("flightplan.read"))],
+            dependencies=[Depends(self.platform_auth.require_scope("scheduling.flightplan.read"))],
         )
         async def get_flight_plan(flight_plan_id: str) -> FlightPlan:
             flight_plan = await self.__get_flight_plan(flight_plan_id)
@@ -133,7 +133,7 @@ class Scheduling(Plugin):
             description="Supersedes an existing flight plan and creates a new one. The new plan will be in 'pending' state.",
             response_model=FlightPlan,
             status_code=status.HTTP_201_CREATED,
-            dependencies=[Depends(self.platform_auth.require_scope("flightplan.update"))],
+            dependencies=[Depends(self.platform_auth.require_scope("scheduling.flightplan.update"))],
         )
         async def update_flight_plan(
             flight_plan_id: str, new_flight_plan_data: FlightPlan, req: Request
@@ -212,7 +212,7 @@ class Scheduling(Plugin):
             summary="Approve or reject a flight plan",
             status_code=status.HTTP_202_ACCEPTED,
             response_description="Request accepted, processing in background if approved.",
-            dependencies=[Depends(self.platform_auth.require_scope("flightplan.approve"))],
+            dependencies=[Depends(self.platform_auth.require_scope("scheduling.flightplan.approve"))],
         )
         async def set_flight_plan_status(
             flight_plan_id: str,
