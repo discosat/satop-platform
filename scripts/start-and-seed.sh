@@ -3,13 +3,10 @@
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
-echo "--- [1/4] Installing/updating dependencies... ---"
-pip install -e .
-
-echo "--- [2/4] Seeding main authorization database... ---"
+echo "--- [1/3] Seeding main authorization database... ---"
 python scripts/seed_db.py
 
-echo "--- [3/4] Starting SatOP Platform in the background... ---"
+echo "--- [2/3] Starting SatOP Platform in the background... ---"
 # Start the server and send it to the background (&)
 python -m satop_platform -vv --install-plugin-requirements &
 
@@ -18,7 +15,6 @@ APP_PID=$!
 
 echo "--- Waiting for API to be ready at http://localhost:7889... ---"
 # Use a loop to wait for the API to be available
-# -s = silent, -f = fail fast, -o /dev/null = discard output
 while ! curl -s -f -o /dev/null http://localhost:7889/docs
 do
   echo "API not ready yet, waiting 1 second..."
@@ -27,7 +23,7 @@ done
 echo "--- API is ready. ---"
 
 
-echo "--- [4/4] Setting passwords for seeded users via API... ---"
+echo "--- [3/3] Setting passwords for seeded users via API... ---"
 
 # Use the insecure test token to authorize the user creation requests
 ADMIN_TOKEN="test-user;satop.auth.entities.create"
@@ -43,7 +39,6 @@ curl -X 'POST' "$API_URL" \
   "password": "adminpassword"
 }'
 
-# Adding a newline for cleaner log output
 echo ""
 
 echo "  - Setting password for operator@example.com..."
@@ -56,7 +51,6 @@ curl -X 'POST' "$API_URL" \
   "password": "operatorpassword"
 }'
 
-# Adding a newline for cleaner log output
 echo ""
 
 echo "--- Seeding complete. SatOP Platform is running. ---"

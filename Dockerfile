@@ -9,26 +9,28 @@ ENV SATOP_API__PORT=7889
 
 FROM base AS deploy
 
-COPY . /app
-RUN chmod -R 777 /app
+WORKDIR /app
 
-RUN adduser runner
+COPY . .
+
+RUN adduser --system --group runner
 USER runner
 
-RUN ls -al /app
-
-RUN pip install --user /app
+RUN pip install --no-cache-dir --user .
 
 ENTRYPOINT [ "python", "-m", "satop_platform" ]
 
 
 FROM base AS devel
 
-RUN mkdir /ws
-RUN adduser devuser
-RUN chown -R devuser:devuser /ws
-USER devuser
+WORKDIR /satop
 
-ENV PATH=$PATH:/home/devuser/.local/bin
+COPY pyproject.toml ./
 
-ENV SHELL=bash
+RUN pip install --no-cache-dir -e '.[lint,test]'
+
+COPY . .
+
+
+RUN adduser --disabled-password --gecos "" devuser && \
+    chown -R devuser:devuser /satop

@@ -61,8 +61,7 @@ services:
       - PYTHONPATH=/satop
       - SATOP_DATA_ROOT=/satop/docker/data
     user: root
-    command: >
-      bash -c "pip install -e '.[test]' && pytest test/pytest"
+    command: pytest test/pytest
   
   lint:
     build:
@@ -76,4 +75,4 @@ services:
       - PYTHONPATH=/satop
     user: root
     command: >
-      bash -c "pip install -e '.[lint]' && ruff check . && black --check . && mypy ."
+      bash -c "ruff check . && black --check . && mypy ."

@@ -2,14 +2,13 @@ import os
 import uuid
 from pathlib import Path
 
-from sqlmodel import Session, SQLModel, create_engine
-
 from satop_platform.components.authorization.models import (
     AuthenticationIdentifiers,
     Entity,
     EntityType,
     RoleScopes,
 )
+from sqlmodel import Session, SQLModel, create_engine
 
 print("--- SatOP Database Seeding Script ---")
 
@@ -29,19 +28,19 @@ OPERATOR_EMAIL = "operator@example.com"
 def tear_down_databases():
     """Removes the database files to ensure a clean slate."""
     print("\n[Phase 1: Tearing Down Databases]")
-    
+
     try:
         if AUTH_DB_FILE.exists():
             AUTH_DB_FILE.unlink()
             print(f"  - Successfully removed main authorization database: {AUTH_DB_FILE}")
         else:
-            print(f"  - Main authorization database not found, skipping removal.")
-            
+            print("  - Main authorization database not found, skipping removal.")
+
         if PASSWORD_DB_FILE.exists():
             PASSWORD_DB_FILE.unlink()
             print(f"  - Successfully removed password plugin database: {PASSWORD_DB_FILE}")
         else:
-            print(f"  - Password plugin database not found, skipping removal.")
+            print("  - Password plugin database not found, skipping removal.")
 
     except OSError as e:
         print(f"  - Error removing database file: {e}")
@@ -70,7 +69,7 @@ def seed_main_authorization_db():
             RoleScopes(role="operator", scope="scheduling.flightplan.create"),
             RoleScopes(role="operator", scope="scheduling.flightplan.read"),
         ]
-        
+
         session.add_all(admin_scopes)
         session.add_all(operator_scopes)
 
