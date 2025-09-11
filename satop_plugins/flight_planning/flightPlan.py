@@ -21,7 +21,7 @@ class FlightPlanDetail(BaseModel):
 class FlightPlan(BaseModel):
     id: Optional[str] = None
     flight_plan: FlightPlanDetail
-    created_at: datetime
+    scheduled_at: datetime
     gs_id: str
     sat_name: str
     status: FlightPlanStatusEnum = FlightPlanStatusEnum.PENDING
@@ -42,7 +42,7 @@ class FlightPlan(BaseModel):
                             {"name": "gpio-write", "pin": 16, "value": 0},
                         ],
                     },
-                    "created_at": "2025-01-01T12:12:30+01:00",
+                    "scheduled_at": "2025-01-01T12:12:30+01:00",
                     "gs_id": "86c8a92b-571a-46cb-b306-e9be71959279",
                     "sat_name": "DISCO-2",
                     "status": "pending",
@@ -53,5 +53,4 @@ class FlightPlan(BaseModel):
 
 
 class UpdateFlightPlanStatus(BaseModel):
-    """Model for PATCH requests to update a flight plan's status."""
     status: FlightPlanStatusEnum

@@ -22,7 +22,7 @@ class StorageDatabase:
                 CREATE TABLE IF NOT EXISTS flight_plans (
                     id TEXT PRIMARY KEY,
                     flight_plan TEXT NOT NULL,
-                    datetime TEXT NOT NULL,
+                    scheduled_at TEXT NOT NULL,
                     gs_id TEXT NOT NULL,
                     sat_name TEXT NOT NULL,
                     status TEXT NOT NULL DEFAULT 'pending',
@@ -39,9 +39,7 @@ class StorageDatabase:
         with self._get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT * FROM flight_plans WHERE id = ?", (flight_plan_id,)
-            )
+            cursor.execute("SELECT * FROM flight_plans WHERE id = ?", (flight_plan_id,))
             row = cursor.fetchone()
 
             if row:
@@ -49,7 +47,7 @@ class StorageDatabase:
                 return FlightPlan(
                     id=row["id"],
                     flight_plan=fp_dict,
-                    datetime=row["datetime"],
+                    scheduled_at=row["scheduled_at"],
                     gs_id=row["gs_id"],
                     sat_name=row["sat_name"],
                     status=row["status"],
@@ -73,7 +71,7 @@ class StorageDatabase:
                     FlightPlan(
                         id=row["id"],
                         flight_plan=fp_dict,
-                        datetime=row["datetime"],
+                        scheduled_at=row["scheduled_at"],
                         gs_id=row["gs_id"],
                         sat_name=row["sat_name"],
                         status=row["status"],
@@ -92,13 +90,13 @@ class StorageDatabase:
             cursor.execute(
                 """
                 INSERT INTO flight_plans
-                (id, flight_plan, datetime, gs_id, sat_name, status, previous_plan_id)
+                (id, flight_plan, scheduled_at, gs_id, sat_name, status, previous_plan_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     flight_plan.id,
                     flight_plan_json,
-                    flight_plan.datetime.isoformat(),
+                    flight_plan.scheduled_at.isoformat(),
                     flight_plan.gs_id,
                     flight_plan.sat_name,
                     flight_plan.status.value,
@@ -126,13 +124,13 @@ class StorageDatabase:
                 cursor.execute(
                     """
                     INSERT INTO flight_plans
-                    (id, flight_plan, datetime, gs_id, sat_name, status, previous_plan_id)
+                    (id, flight_plan, scheduled_at, gs_id, sat_name, status, previous_plan_id)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         new_plan_uuid,
                         flight_plan_json,
-                        new_plan.datetime.isoformat(),
+                        new_plan.scheduled_at.isoformat(),
                         new_plan.gs_id,
                         new_plan.sat_name,
                         FlightPlanStatusEnum.PENDING.value,
