@@ -37,12 +37,6 @@ auth_scheme = HTTPBearer(
 
 # Missing:
 # - Token scopes (User Scopes) (Dependency called in auth_scope)
-# - Match Authentication Plugin Token with User, so different plugins can be used for different users (Depends() function?) Already Done in satop_plugins' password_authentication_provider.py - Done
-# - Make sure Token can decode (So we can validate it) - Done
-# - Make Token Reneval (Update Access Token) (If new access token hasent been requested in 15 minutes, user has to log in again)
-# - Make Token Reneval (Update Refresh Token) (Get logged out after 1 day of not using the platform/Stay logged in for 1 day after last use (unless logged out))
-# - Make User
-# - Make User Scopes
 # - Make possible to add new Scopes to User
 # - Make possible to remove Scopes from User
 
@@ -456,6 +450,9 @@ class PlatformAuthorization:
                 raise exceptions.InvalidUser
 
             roles = entity.roles.split(",")
+
+            #if roles == "": # Deafult Role
+            #    roles = "guest"
 
             statement = sqlmodel.select(models.RoleScopes).where(models.RoleScopes.role.in_(roles))  # type: ignore
             result = session.exec(statement).all()

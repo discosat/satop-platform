@@ -70,8 +70,14 @@ def seed_main_authorization_db():
             RoleScopes(role="operator", scope="scheduling.flightplan.read"),
         ]
 
+        guest_scopes = [
+            RoleScopes(role="guest", scope="scheduling.flightplan.read"),
+            RoleScopes(role="guest", scope="scheduling.flightplan.create"),
+        ]
+
         session.add_all(admin_scopes)
         session.add_all(operator_scopes)
+        session.add_all(guest_scopes)
 
         # Seed Entities (the users)
         print("  - Seeding Entities...")
