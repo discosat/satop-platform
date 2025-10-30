@@ -360,6 +360,7 @@ When starting work on one of the missing features, first create a new issue on G
 - [x] Entity modification and management
 - [x] Be able to refresh/renew tokens
 - [x] Standardize scopes and their naming scheme,
+- [x] Add a default role 
 - [ ] Add a way for components and plugins to specify which scopes they add to the system to enable easier user creation.
 - [x] Scopes should be hierarchical, so e.g. a user with the "admin" scope would be authorized for routes requiring "admin.user_create".
 
