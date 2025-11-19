@@ -6,14 +6,17 @@ services:
       target: deploy
     ports:
       - "7889:7889"
+    environment:
+      - SATOP_DATA_ROOT=/satop/data
     volumes:
       - ./docker/data:/satop/data
+      - ./satop_plugins:/satop/data/plugins
+
 
   all_plugins:
     extends: platform
-    volumes:
-      - ./satop_plugins:/satop/data/plugins
     command: --install-plugin-requirements
+
 
   dev:
     build:
@@ -22,16 +25,19 @@ services:
       target: devel
     ports:
       - "7889:7889"
+    working_dir: /satop
     volumes:
       - .:/satop
       - ./docker/data:/satop/data
-    working_dir: /satop
+      - ./satop_plugins:/satop/data/plugins
+
     environment:
+      - SATOP_ENABLE_TEST_AUTH=true
       - SATOP_DATA_ROOT=/satop/data
       - PYTHONPATH=/satop
-      - SATOP_ENABLE_TEST_AUTH=true
-    user: root
+
     entrypoint: ["./scripts/start-and-seed.sh"]
+    user: root
 
 
   devcontainer:
@@ -44,33 +50,38 @@ services:
     volumes:
       - .:/ws
       - ./docker/data:/satop/data
+      - ./satop_plugins:/satop/data/plugins
     environment:
       - SATOP_DATA_ROOT=/satop/data
     command: ["sleep", "infinity"]
+
 
   test:
     build:
       context: .
       dockerfile: ./Dockerfile
       target: devel
+    working_dir: /satop
     volumes:
       - .:/satop
       - ./docker/data:/satop/data
-    working_dir: /satop
+      - ./satop_plugins:/satop/data/plugins
     environment:
       - PYTHONPATH=/satop
       - SATOP_DATA_ROOT=/satop/docker/data
     user: root
     command: pytest test/pytest
-  
+
+
   lint:
     build:
       context: .
       dockerfile: ./Dockerfile
       target: devel
+    working_dir: /satop
     volumes:
       - .:/satop
-    working_dir: /satop
+      - ./satop_plugins:/satop/data/plugins
     environment:
       - PYTHONPATH=/satop
     user: root
