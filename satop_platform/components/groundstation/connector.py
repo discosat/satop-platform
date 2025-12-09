@@ -157,15 +157,15 @@ class GroundstationConnector:
             try:
                 token_payload = api.authorization.validate_token(access_token)
 
-            except exceptions.ExpiredToken | exceptions.InvalidToken as e:
+            except (exceptions.ExpiredToken, exceptions.InvalidToken) as e:
                 logger.warning(f"GS Client authorization error: {e}")
                 await websocket.send_json({"message": "authorization error"})
                 await websocket.close(code=3000)
                 return
 
-            gs_id = token_payload.get("sub")
+            gs_id = token_payload.sub
             if gs_id:
-                gs_id = UUID(gs_id)
+                gs_id = UUID(str(gs_id))
             else:
                 logger.warning("GS Client token missing 'sub':")
                 await websocket.send_json({"message": "token missing sub"})
@@ -186,7 +186,7 @@ class GroundstationConnector:
                     in_response_to = message.get("in_response_to")
 
                     if in_response_to:
-                        in_response_to = UUID(in_response_to)
+                        in_response_to = UUID(str(in_response_to))
                         logger.debug(
                             f"Got response message to {in_response_to}: {message}"
                         )
@@ -266,8 +266,7 @@ class GroundstationConnector:
                 t1 = asyncio.create_task(read_task())
                 t2 = asyncio.create_task(write_task())
 
-                await t1
-                await t2
+                await asyncio.gather(t1, t2)
 
             except WebSocketDisconnect:
                 logger.info(f"GS Client {name} ({gs_id}) disconnected")
@@ -304,15 +303,15 @@ class GroundstationConnector:
             try:
                 token_payload = api.authorization.validate_token(access_token)
 
-            except exceptions.ExpiredToken | exceptions.InvalidToken as e:
+            except (exceptions.ExpiredToken, exceptions.InvalidToken) as e:
                 logger.warning(f"Terminal Client authorization error: {e}")
                 await websocket.send_json({"error": "authorization error"})
                 await websocket.close(code=3000)
                 return
 
-            user_id = token_payload.get("sub")
+            user_id = token_payload.sub
             if user_id:
-                user_id = UUID(user_id)
+                user_id = UUID(str(user_id))
             else:
                 logger.warning("Terminal Client token missing 'sub':")
                 await websocket.send_json({"error": "token missing sub"})
@@ -501,7 +500,7 @@ class GroundstationConnector:
     ):
         # TODO: Create proxy header from request
         proxy_header = ProxyHeader(
-            "control_frame", request.state.token_payload.get("sub")
+            "control_frame", str(request.state.token_payload.sub)
         )
         return await self.send_to_gs(gs_uuid, data, proxy_header)
 
