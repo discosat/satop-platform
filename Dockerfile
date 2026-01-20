@@ -9,16 +9,18 @@ ENV SATOP_API__PORT=7889
 
 FROM base AS deploy
 
-WORKDIR /app
+WORKDIR /satop
 
 COPY . .
 
 RUN adduser --system --group runner
+RUN chown runner:runner /satop -R
+
+RUN pip install --no-cache-dir .
+
 USER runner
 
-RUN pip install --no-cache-dir --user .
-
-ENTRYPOINT [ "python", "-m", "satop_platform" ]
+ENTRYPOINT [ "python", "-m", "satop_platform"]
 
 
 FROM base AS devel

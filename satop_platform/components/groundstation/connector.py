@@ -89,6 +89,7 @@ class GroundstationConnector:
         self.registered_groundstations = dict()
         self.registered_terminals = dict()
         self.__setup_routes(app.api)
+        app.event_manager.subscribe("satop.shutdown", self.shutdown_groundstations)
 
     async def __websocket_send(
         self,
@@ -182,7 +183,8 @@ class GroundstationConnector:
 
             async def read_task():
                 while True:
-                    message = await websocket.receive_json()
+                    message = await websocket.receive_json(mode="text")
+                    message = json.loads(message)
                     in_response_to = message.get("in_response_to")
 
                     if in_response_to:
@@ -429,6 +431,7 @@ class GroundstationConnector:
         async def control_groundstation_framed(
             gs_uuid: UUID, header_data: dict, request: Request
         ):
+            # TODO this crashes if the frames property does not exist
             frames = header_data.pop("frames")
             await self.send_control(
                 request, gs_uuid, FramedContent(header_data=header_data, frames=frames)
@@ -626,6 +629,11 @@ class GroundstationConnector:
         del self.registered_terminals[reg_key]
 
         return
+    def shutdown_groundstations(self, x):
+        for gsid,gs in self.registered_groundstations.items():
+            logger.info("shutting down gs: ", gsid)
+            asyncio.run(gs.websocket.close())
+        
 
 
 """

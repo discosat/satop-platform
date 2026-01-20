@@ -263,7 +263,7 @@ class Scheduling(Plugin):
                     "Compiler", "compile", commands_to_compile, user_id
                 )
                 background_tasks.add_task(
-                    self._do_send_to_gs, flight_plan, compiled_plan, artifact_id, user_id
+                    self._do_send_to_gs, flight_plan_id, compiled_plan, artifact_id, user_id, request
                 )
                 return {"message": "Flight plan approved and scheduled for transmission."}
             else: # Rejected
@@ -271,7 +271,7 @@ class Scheduling(Plugin):
                 return {"message": "Flight plan rejected."}
 
     async def _do_send_to_gs(
-        self, flight_plan_uuid, compiled_plan, artifact_id, user_id
+        self, flight_plan_uuid, compiled_plan, artifact_id, user_id, request
     ):
         """Send the compiled plan to the GS client
 
@@ -280,12 +280,13 @@ class Scheduling(Plugin):
             compiled_plan (dict): The compiled flight plan
             artifact_id (str): Identifier of the compiled flight plan
             user_id (str): Identifier of the user who performed this action
+            request (Request): The request that generated this action
         """
         # Send the compiled plan to the GS client
         logger.debug(f"\nsending compiled plan to GS: \n{compiled_plan}\n")
 
         flight_plan_with_datetime = await self.__get_flight_plan(
-            flight_plan_uuid, user_id
+            flight_plan_uuid
         )
         if not flight_plan_with_datetime:
             logger.error(f"Flight plan with ID: '{flight_plan_uuid}' not found")
@@ -299,8 +300,9 @@ class Scheduling(Plugin):
             artifact_id,
             compiled_plan,
             flight_plan_gs_id,
-            flight_plan_with_datetime.datetime,
+            flight_plan_with_datetime.scheduled_at.isoformat(),
             flight_plan_with_datetime.sat_name,
+            request
         )
         logger.debug(f"GS response: {gs_rtn_msg}")
 
@@ -332,6 +334,7 @@ class Scheduling(Plugin):
         gs_id: UUID,
         datetime: str,
         satellite: str,
+        request: Request
     ):
         """Send the compiled plan to the GS client
 
@@ -341,6 +344,7 @@ class Scheduling(Plugin):
             gs_id (UUID): Identifier of the ground station
             datetime (str): The datetime of the transmission
             satellite (str): The satellite to which the transmission is scheduled
+            request (Request): The request that generated this action
 
         Returns:
             (str): The response from the GS client
@@ -359,14 +363,13 @@ class Scheduling(Plugin):
             frames=[compiled_plan],
         )
 
-        return await self.gs_connector.send_control(gs_id, frame)
+        return await self.gs_connector.send_control(request, gs_id, frame)
 
     async def __get_flight_plan(self, flight_plan_id: str) -> FlightPlan | None:
         try:
             return await run_in_threadpool(
                 self.data_base.get_flight_plan, flight_plan_id
-            )
-        except Exception as e:
+            ) except Exception as e:
             logger.error(
                 f"Database error getting flight plan '{flight_plan_id}': {e}"
             )

@@ -8,9 +8,10 @@ services:
       - "7889:7889"
     environment:
       - SATOP_DATA_ROOT=/satop/data
+      - HOME=/satop/data
     volumes:
-      - ./docker/data:/satop/data
-      - ./satop_plugins:/satop/data/plugins
+      - docker_data:/satop/data
+      - satop_plugins:/satop/data/plugins
 
 
   all_plugins:
@@ -87,3 +88,7 @@ services:
     user: root
     command: >
       bash -c "ruff check . && black --check . && mypy ."
+
+volumes:
+  docker_data:
+  satop_plugins:

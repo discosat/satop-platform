@@ -129,12 +129,19 @@ class Compiler(Plugin):
             )
 
         ## --- Do the actual compilation here ---
-        p = parser.parse(flight_plan)
-        if p is None:
-            return {"message": "Error parsing flight plan"}
 
+        compiled = []
         G = CodeGen()
-        compiled = G.code_gen(p)
+
+        # parse and compile each instruction sequentially
+        for instruction in flight_plan:
+            p = parser.parse(instruction)
+
+            if p is None:
+                return {"message": "Error parsing flight plan"}
+
+            compiled = compiled + G.code_gen(p)
+
         ## --- End of compilation ---
 
         compiled_as_bytes = "\n".join(compiled).encode("utf-8")
