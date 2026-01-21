@@ -369,7 +369,8 @@ class Scheduling(Plugin):
         try:
             return await run_in_threadpool(
                 self.data_base.get_flight_plan, flight_plan_id
-            ) except Exception as e:
+            ) 
+        except Exception as e:
             logger.error(
                 f"Database error getting flight plan '{flight_plan_id}': {e}"
             )
