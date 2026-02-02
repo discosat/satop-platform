@@ -431,7 +431,9 @@ class GroundstationConnector:
         async def control_groundstation_framed(
             gs_uuid: UUID, header_data: dict, request: Request
         ):
-            # TODO this crashes if the frames property does not exist
+            frames = header_data.get("frames")
+            if frames is None:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY)
             frames = header_data.pop("frames")
             await self.send_control(
                 request, gs_uuid, FramedContent(header_data=header_data, frames=frames)

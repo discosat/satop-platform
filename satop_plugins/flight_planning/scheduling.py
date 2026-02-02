@@ -357,8 +357,9 @@ class Scheduling(Plugin):
         # Send the compiled plan to the GS client
         frame = FramedContent(
             header_data={
-                "type": "schedule_transmission",
-                "data": {"time": datetime, "satellite": satellite},
+                "api": "schedule_transmission",
+                "args": [datetime], ## support for different satellites is a bit spooky right now
+                #"data": {"time": datetime, "satellite": satellite},
             },
             frames=[compiled_plan],
         )
